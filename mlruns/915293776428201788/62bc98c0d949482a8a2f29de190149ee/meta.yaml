@@ -1,0 +1,15 @@
+artifact_uri: file:///home/ubuntu/workbench/mlruns/915293776428201788/62bc98c0d949482a8a2f29de190149ee/artifacts
+end_time: 1702645826146
+entry_point_name: ''
+experiment_id: '915293776428201788'
+lifecycle_stage: active
+run_id: 62bc98c0d949482a8a2f29de190149ee
+run_name: Linear Regression
+run_uuid: 62bc98c0d949482a8a2f29de190149ee
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1702645823818
+status: 3
+tags: []
+user_id: ubuntu

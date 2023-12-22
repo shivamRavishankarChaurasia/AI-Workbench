@@ -1,0 +1,15 @@
+artifact_uri: file:///home/ubuntu/workbench/mlruns/950276450825886895/5d48f043d92d4201a3d15f34a79683be/artifacts
+end_time: 1703147051592
+entry_point_name: ''
+experiment_id: '950276450825886895'
+lifecycle_stage: active
+run_id: 5d48f043d92d4201a3d15f34a79683be
+run_name: LSTM
+run_uuid: 5d48f043d92d4201a3d15f34a79683be
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1703147044964
+status: 3
+tags: []
+user_id: ubuntu

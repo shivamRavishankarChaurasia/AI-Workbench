@@ -1,0 +1,14 @@
+aliases: []
+creation_timestamp: 1699529226958
+current_stage: Production
+description: null
+last_updated_timestamp: 1699529236977
+name: JSW_PREDICTION_RandomForestRegressor
+run_id: 006d8e145d6849c1b99b1ea50420c73f
+run_link: null
+source: file:///home/ubuntu/workbench/mlruns/915293776428201788/006d8e145d6849c1b99b1ea50420c73f/artifacts/RandomForestRegressor
+status: READY
+status_message: null
+storage_location: file:///home/ubuntu/workbench/mlruns/915293776428201788/006d8e145d6849c1b99b1ea50420c73f/artifacts/RandomForestRegressor
+user_id: null
+version: 1

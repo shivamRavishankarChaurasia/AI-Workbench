@@ -1,0 +1,1 @@
+{"fileName": "TS_ENERGY_PREDICTION", "timeCreated": "2023-11-13 12:25:37", "timeModified": "2023-11-13 12:26:09", "proccess": ["df.drop(columns=['Unnamed: 0'],axis=1)"]}

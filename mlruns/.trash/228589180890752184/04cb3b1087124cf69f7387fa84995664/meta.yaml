@@ -1,0 +1,16 @@
+artifact_uri: file:///home/ubuntu/workbench/mlruns/228589180890752184/04cb3b1087124cf69f7387fa84995664/artifacts
+deleted_time: 1699868459913
+end_time: 1699861994482
+entry_point_name: ''
+experiment_id: '228589180890752184'
+lifecycle_stage: deleted
+run_id: 04cb3b1087124cf69f7387fa84995664
+run_name: SARIMAX
+run_uuid: 04cb3b1087124cf69f7387fa84995664
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1699861987885
+status: 3
+tags: []
+user_id: ubuntu

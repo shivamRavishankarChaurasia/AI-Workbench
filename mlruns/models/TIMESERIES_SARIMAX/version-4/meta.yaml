@@ -1,0 +1,14 @@
+aliases: []
+creation_timestamp: 1699876257309
+current_stage: None
+description: null
+last_updated_timestamp: 1699876257309
+name: TIMESERIES_SARIMAX
+run_id: 389f3f246fb14738af024b27d31b8a0e
+run_link: null
+source: file:///home/ubuntu/workbench/mlruns/228589180890752184/389f3f246fb14738af024b27d31b8a0e/artifacts/SARIMAX
+status: READY
+status_message: null
+storage_location: file:///home/ubuntu/workbench/mlruns/228589180890752184/389f3f246fb14738af024b27d31b8a0e/artifacts/SARIMAX
+user_id: null
+version: 4

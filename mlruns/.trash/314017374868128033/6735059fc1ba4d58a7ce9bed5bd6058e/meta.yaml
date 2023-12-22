@@ -1,0 +1,16 @@
+artifact_uri: file:///home/ubuntu/workbench/mlruns/314017374868128033/6735059fc1ba4d58a7ce9bed5bd6058e/artifacts
+deleted_time: 1699815401235
+end_time: 1699815381771
+entry_point_name: ''
+experiment_id: '314017374868128033'
+lifecycle_stage: deleted
+run_id: 6735059fc1ba4d58a7ce9bed5bd6058e
+run_name: ARIMA
+run_uuid: 6735059fc1ba4d58a7ce9bed5bd6058e
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1699815379920
+status: 3
+tags: []
+user_id: ubuntu

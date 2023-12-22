@@ -1,0 +1,15 @@
+artifact_uri: file:///home/ubuntu/workbench/mlruns/915293776428201788/88a22d877f384f3c8f0b370956f76868/artifacts
+end_time: 1699528453787
+entry_point_name: ''
+experiment_id: '915293776428201788'
+lifecycle_stage: active
+run_id: 88a22d877f384f3c8f0b370956f76868
+run_name: XGBoost
+run_uuid: 88a22d877f384f3c8f0b370956f76868
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1699528451384
+status: 3
+tags: []
+user_id: ubuntu

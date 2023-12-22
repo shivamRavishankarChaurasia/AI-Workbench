@@ -1,0 +1,16 @@
+aliases: []
+creation_timestamp: 1699815241561
+current_stage: Production
+description: null
+last_updated_timestamp: 1699815251577
+name: JSW_PREDICTION_Linear Regression
+run_id: fbf15f4811f749adb799eb51fcbbccf3
+run_link: null
+source: file:///home/ubuntu/workbench/mlruns/915293776428201788/fbf15f4811f749adb799eb51fcbbccf3/artifacts/Linear
+  Regression
+status: READY
+status_message: null
+storage_location: file:///home/ubuntu/workbench/mlruns/915293776428201788/fbf15f4811f749adb799eb51fcbbccf3/artifacts/Linear
+  Regression
+user_id: null
+version: 1

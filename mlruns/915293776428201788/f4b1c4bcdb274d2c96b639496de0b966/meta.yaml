@@ -1,0 +1,15 @@
+artifact_uri: file:///home/ubuntu/workbench/mlruns/915293776428201788/f4b1c4bcdb274d2c96b639496de0b966/artifacts
+end_time: 1700826724851
+entry_point_name: ''
+experiment_id: '915293776428201788'
+lifecycle_stage: active
+run_id: f4b1c4bcdb274d2c96b639496de0b966
+run_name: RandomForestRegressor
+run_uuid: f4b1c4bcdb274d2c96b639496de0b966
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1700826719638
+status: 3
+tags: []
+user_id: ubuntu

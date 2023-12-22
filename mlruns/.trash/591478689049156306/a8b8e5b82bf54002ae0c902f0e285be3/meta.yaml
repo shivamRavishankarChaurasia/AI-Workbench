@@ -1,0 +1,16 @@
+artifact_uri: file:///home/ubuntu/workbench/mlruns/591478689049156306/a8b8e5b82bf54002ae0c902f0e285be3/artifacts
+deleted_time: 1699529740787
+end_time: 1699529714235
+entry_point_name: ''
+experiment_id: '591478689049156306'
+lifecycle_stage: deleted
+run_id: a8b8e5b82bf54002ae0c902f0e285be3
+run_name: Random Forest
+run_uuid: a8b8e5b82bf54002ae0c902f0e285be3
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1699529710744
+status: 3
+tags: []
+user_id: ubuntu

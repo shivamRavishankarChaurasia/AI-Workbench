@@ -1,0 +1,1 @@
+{"fileName": "ENERGY_PREDICTION", "timeCreated": 1699266187, "timeModified": "2023-12-15 09:19:58", "proccess": ["df['Total Apparent Power (D0)'].fillna(method='ffill')", "df['Total Active Power (D1)'].fillna(method='ffill')"]}

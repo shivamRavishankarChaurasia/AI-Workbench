@@ -1,7 +1,0 @@
-artifact_location: file:///home/ubuntu/workbench/mlruns/691956418702930162
-creation_time: 1699878631814
-experiment_id: '691956418702930162'
-last_update_time: 1699878747386
-lifecycle_stage: deleted
-name: TS_ENERGY_PREDICTION
-tags: {}

@@ -16,6 +16,7 @@ class ReportFormat(BaseModel):
     xTarget: List[str]
     testSize: float
     scaler: str
+    iosense:str
 
 class TimeConfig(BaseModel):
     filename: str
@@ -25,6 +26,7 @@ class TimeConfig(BaseModel):
     timeCol: str
     testSize: float
     m: int
+    iosense:str
 
 class CustomLstmConfig(BaseModel):
     filename: str
@@ -40,6 +42,7 @@ class CustomLstmConfig(BaseModel):
     batchSize: int
     lstmNodes: int
     learningRate: float
+    iosense:str
 
 class BasicLstmConfig(BaseModel):
     filename: str
@@ -50,6 +53,7 @@ class BasicLstmConfig(BaseModel):
     timeCol: str
     selectedType: str
     sequenceLength: int
+    iosense:str
 
 class ResponseFormat(BaseModel):
     success: str

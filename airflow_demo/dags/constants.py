@@ -12,7 +12,8 @@ DEFAULT BASE FOR ENTIRE WORKBENCH
 """
 DEFAULT_STORAGE = "Database/{file}.parquet"
 DEFAULT_METADATA = "Database/Metadata/{file}.json"
-DEFAULT_IOSENSE_METADATA = "Database/iosense_Metadata/{file}.json"
+SCHEDULE_METADATA = "Database/ScheduleMetadata/{file}.json"
+
 
 URL = os.getenv('URL')
 CONTAINER = os.getenv('CONTAINER_NAME')

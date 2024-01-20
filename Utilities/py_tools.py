@@ -20,6 +20,7 @@ import pyparsing as pp
 
 from statsmodels.tsa.stattools import adfuller
 from sklearn.utils import resample
+from imblearn.over_sampling import SMOTE
 from imblearn.over_sampling import SMOTENC
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from statsmodels.tsa.seasonal import seasonal_decompose
@@ -45,7 +46,6 @@ def create_parquet(df: pd.DataFrame,file_name: str) -> bool:
         else:
             df.to_parquet(c.DEFAULT_STORAGE.format(file=file_name),index=False)
             create_metadata(file_name=file_name)
-            st.success("File Arrival Confirmed")
     except Exception as e:
         st.error(e)
     
@@ -62,6 +62,7 @@ def update_parquet(df: pd.DataFrame,file_name: str):
     df.to_parquet(c.DEFAULT_STORAGE.format(file=file_name), index=False)
 
 
+
 def read_parquet(file_name=None):
     """Takes in directory and file name to read parquet file
 
@@ -76,6 +77,7 @@ def read_parquet(file_name=None):
     result_df = pd.read_parquet(c.DEFAULT_STORAGE.format(file=file_name))
     return result_df
 
+
 def files_details():
     """_summary_
 
@@ -88,42 +90,146 @@ def files_details():
         file_list.append(file.split("/")[-1].split(".")[0])
     return file_list
 
+
 """
 All Related to Metadata
 """
+def create_metadata(file_name: str):
+    try:
+        st.toast(f"Initialized Metadata for {file_name}")
+        metadata = {
+            'fileName': file_name,
+            'timeCreated': str(datetime.now().replace(microsecond=0)),
+            'timeModified': str(datetime.now().replace(microsecond=0)),
+            'proccess': []
+        }
+        file_path = c.DEFAULT_METADATA.format(file=file_name)
 
-def create_metadata(file_name:str):
+        with open(file_path, "w") as json_file:
+            json.dump(metadata, json_file)
+        
+        st.success("Metadata created Successfully")
+        return True
+    except Exception as e:
+        st.error(f"Couldn't create Metadata. Error: {e}")
+        return False
+    
 
-    st.toast(f"Initialised Metadata for {file_name}")
-    metadata = {}
-    metadata['fileName'] = file_name
-    metadata['timeCreated'] = str(datetime.now().replace(microsecond=0)) 
-    metadata['timeModified'] = str(datetime.now().replace(microsecond=0)) 
-    metadata['proccess'] = []
-    file_path = c.DEFAULT_METADATA.format(file=file_name)
-
-    with open(file_path, "w") as json_file:
-        json.dump(metadata, json_file)
+# this metadata is for iosense data
+def modify_metdata(file_name :str , Device_ID, Sensors, start_time, end_time, period, cal, db, ist):
+    try:
+        st.toast("Updating metadata")
+        file_path = c.DEFAULT_METADATA.format(file=file_name)
+        with open(file_path, 'r') as config_file:
+            config = json.load(config_file)
+       
+        config['iosense']= {
+            'Device_Id': Device_ID,
+            'sensors': Sensors if Sensors is not None else None,
+            'start_time': str(start_time),
+            'end_time': str(end_time),
+            'period': int(period),
+            'cal': str(cal),
+            'db': str(db),
+            'IST': str(ist)
+            }
+        with open(file_path, "w") as json_file:
+            json.dump(config, json_file)
+        return True
+    except Exception as e:
+        st.error(f"Couldn't Modify iosense Metadata. Error: {e}")
+        return False
+        
 
 def modify_metadata(file_name:str,new_process:list) -> bool:
     try:
         st.toast("Updating metadata")
-        
         file_path = c.DEFAULT_METADATA.format(file=file_name)
-
         with open(file_path, 'r') as config_file:
             config = json.load(config_file)
-
         config['timeModified'] = str(datetime.now().replace(microsecond=0))
-
         for process in new_process:
             config['proccess'].append(process)
-
         with open(file_path, "w") as json_file:
             json.dump(config, json_file)
-        st.success("Update Operation Successful")
-    except:
-        st.error(f"Couldn't Modify Metadata")
+        st.toast("Metadata updated Successfully")
+        return True
+    except Exception as e:
+        st.error(f"Couldn't Modify iosense Metadata. Error: {e}")
+        return False
+
+
+def create_scheduling_metadata(config , train_date, train_time, n_periods, frequency, rolling):
+    try:
+        file_name = config["filename"]
+        st.toast(f"Initialized Metadata for {file_name}")
+        metadata = {
+            'fileName': file_name,
+            'modelling':config,
+            'schedular': {
+            'train_date': str(train_date),
+            'train_time': str(train_time),
+            'n_period': int(n_periods),
+            'frequency': str(frequency),
+            'rolling': str(rolling)
+        }
+    
+        }
+        # file_path = f"Database/ScheduleMetadata/{file_name}.json"
+        file_path = c.SCHEDULE_METADATA.format(file=file_name)
+        with open(file_path, "w") as json_file:
+            json.dump(metadata, json_file, indent=4)
+
+        st.success("Metadata created Successfully")
+        return True
+    except Exception as e:
+        st.error(f"Couldn't create Metadata. Error: {e}")
+        return False
+    
+
+# this metadata is for iosense data
+# def modify_scheduling_metadata(file_name: str, train_date, train_time, n_periods, frequency, rolling):
+#     try:
+#         st.toast("Updating metadata")
+#         file_path = c.SCHEDULE_METADATA.format(file=file_name)
+#         # file_path = f"Database/ScheduleMetadata/{file_name}.json"
+#         with open(file_path, 'r') as config_file:
+#             config = json.load(config_file)
+#         config['schedular']= {
+#             'train_date': str(train_date),
+#             'train_time': str(train_time),
+#             'n_period': int(n_periods),
+#             'frequency': str(frequency),
+#             'rolling': str(rolling)
+#         }
+#         with open(file_path, "w") as json_file:
+#             json.dump(config, json_file)
+#         return True
+#     except Exception as e:
+#         st.error(f"Couldn't Modify iosense Metadata. Error: {e}")
+#         return False
+
+
+def has_iosense_key(file_name: str) -> bool:
+    file_path = c.DEFAULT_METADATA.format(file=file_name)
+    try:
+        with open(file_path, 'r') as config_file:
+            config = json.load(config_file)
+        # Check if 'iosense' key exists in the config dictionary
+        return 'iosense' in config
+        # return 'iosense' in config and config['iosense']
+    except (FileNotFoundError, json.JSONDecodeError):
+        # Return False in case of file not found or JSON decode error
+        return False
+
+# scheduling part part 
+def get_scheduling_parameters():
+    selected_date = st.date_input("Select the date")
+    selected_time = st.time_input("Select the time")
+    frequency = st.selectbox("Select the frequency", ["Hourly", "Daily", "Weekly", "Monthly", "Yearly"])
+    periods = st.number_input("Number of times to retrain", min_value=1, max_value=8, value=1)
+    rolling_checkbox = st.checkbox("Start_time:")
+    return selected_date, selected_time, frequency, periods, rolling_checkbox
 
 """
 Streamlit Sessions
@@ -227,6 +333,7 @@ def delete_in_page_session():
 
     st.session_state.clear()
 
+
 """
 Data Import
 """
@@ -241,6 +348,7 @@ def verify_userid_iosense(user_key:str):
     if type(values) == type(None):
         values = pd.DataFrame()
     return values
+
 
 @st.cache_data
 def iosense_multi_select_concatinator(_io_sense,selected_device,select_sensors,start_time,end_time,db,cal,ist):
@@ -463,6 +571,7 @@ Returns:
     df_new = df.drop(outlier_df.index)
     return df_new
 
+
 @st.cache_data
 def get_imbalance_cols(df):
     """The function get_imbalance_cols takes a DataFrame df and returns a list of columns with low cardinality, indicating imbalance column, using a default threshold of 10% of the DataFrame length
@@ -472,18 +581,20 @@ def get_imbalance_cols(df):
     Returns:
         _type_: List of imbalance column 
     """
-    cat_columns = df.select_dtypes(include='object').columns
     imb_col_lst = []
-    
+    cat_columns = df.select_dtypes(include="object").columns
+
     for col in cat_columns:
         unique_count = len(df[col].unique())
         if unique_count <= c.CARDINALITY_THRESHOLD:
             imb_col_lst.append(col)
-    
+
     return imb_col_lst
 
 
 
+
+    
 @st.cache_data
 def plot_imbalance_piechart(df, col):
     """
@@ -505,36 +616,58 @@ def plot_imbalance_piechart(df, col):
 
 
 @st.cache_data
-def smote_resampling(df, col, type):
+def smote_resampling(df, target_column):
     """
     Perform Synthetic Minority Over-sampling Technique for Nominal and Continuous (SMOTENC) resampling.
 
     Parameters:
         df (pd.DataFrame): The input DataFrame containing the data.
-        col (str): The target column name for resampling.
-        type (str): The type of resampling ('smote' for SMOTENC).
+        target_column (str): The target column name for resampling.
 
     Returns:
         pd.DataFrame: A resampled DataFrame with balanced classes.
     """
-    smote_df = df.copy()
-    smote_df = smote_df.dropna()
-    y = smote_df[col]
-    X = smote_df.drop([col], axis=1)
+    smote_df = df.copy().dropna()
+    X = smote_df.drop([target_column], axis=1)
+    y = smote_df[target_column]
 
-    # To tell the SMOTENC model, which are all the categorical variables
-    cat_col_list = []
-    for i in list(set(X.columns) - set(X._get_numeric_data().columns)):
-            index = X.columns.get_loc(i)
-            cat_col_list.append(index)
-    cat_col_list.sort()
+    # Identify categorical features
+    categorical_features = X.select_dtypes(include=['object']).columns.tolist()
 
-    smote_nc = SMOTENC(categorical_features=cat_col_list, random_state=10)
+    smote_nc = SMOTENC(categorical_features=categorical_features, random_state=10)
     X_resampled, y_resampled = smote_nc.fit_resample(X, y)
-    X_resampled.insert(0, col, y_resampled)
     
-    f_resampled = pd.concat([pd.DataFrame(y_resampled, columns=[col]), pd.DataFrame(X_resampled, columns=X.columns)], axis=1)
-    return  f_resampled
+    resampled_df = pd.concat([pd.DataFrame(y_resampled, columns=[target_column]), pd.DataFrame(X_resampled, columns=X.columns)], axis=1)
+    
+    return resampled_df
+
+
+# @st.cache_data
+# def smote_resampling(df, col):
+#     """
+#     Perform Synthetic Minority Over-sampling Technique (SMOTE) resampling.
+
+#     Parameters:
+#         df (pd.DataFrame): The input DataFrame containing the data.
+#         col (str): The target column name for resampling.
+
+#     Returns:
+#         pd.DataFrame: A resampled DataFrame with balanced classes.
+#     """
+#     smote_df = df.copy()
+#     smote_df = smote_df.dropna()
+#     y = smote_df[col]
+#     X = smote_df.drop([col], axis=1)
+
+#     smote = SMOTE(random_state=10)
+#     X_resampled, y_resampled = smote.fit_resample(X, y)
+    
+#     resampled_df = pd.concat([pd.DataFrame(y_resampled, columns=[col]), pd.DataFrame(X_resampled, columns=X.columns)], axis=1)
+    
+#     return resampled_df
+
+
+
 
 
 @st.cache_data
@@ -988,17 +1121,18 @@ def check_if_column_type(df: pd.DataFrame, column_name: str) -> str:
     else:
         return 'other'
     
+
+
 def get_mlflow_experiments_name():
     experiments = []
     for experiment in mlflow.search_experiments():
         name = experiment.name
-
         if name == "Default":
             continue
         else:
             experiments.append(name)
-
     return experiments
+
 
 def delete_api(experiment_name):
 
@@ -1009,6 +1143,7 @@ def delete_api(experiment_name):
 
     except Exception as e:
         print(f"Exception Occured while deleting the data: {experiment_name}")
+
 
 import seaborn as sns
 import matplotlib.pyplot as plt

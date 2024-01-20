@@ -50,6 +50,7 @@ def main():
 
                 Manager.create_parquet(df=df,file_name=file.name)
 
+
     else:
         st.subheader('Connect to IO-Sense')
         col1,col2 = st.columns([3.5,1.5])
@@ -64,30 +65,30 @@ def main():
         user_key = c.API_KEY
         try:
             values = Manager.verify_userid_iosense(user_key=user_key)
-
             if not values.empty:
                 col1.success('Api Authentication Successful')
                 value = values['devID']
-
                 io_sense = io.DataAccess(user_key,c.URL,c.CONTAINER)
-                
                 with col2.container():
                     radio_select = st.radio("Select: ",['Single-Choice','Multi-Choice'],horizontal=True)
 
                     if radio_select == 'Single-Choice':
                         with col2.container():
                             selected_option = st.selectbox('Select Device', value, key="da_device_select")
-
                             sensor_list = []
                             sensors = io_sense.get_device_metadata(device_id=selected_option)
                             for sensor in sensors["sensors"]:
                                 sensor_list.append(sensor["sensorId"])
-
                             select_sensors = st.multiselect("Select sensor",sensor_list,key="da_sensors_select")
                             col_1,col_2 = st.columns([2,2])
                             start_time = col_1.date_input("Select Start Date",key="da_start_time")
                             end_time = col_2.date_input("Select End Date",key="da_end_time")
-
+                            if start_time <= end_time:
+                                period = end_time - start_time
+                            else:
+                                period = start_time - end_time
+                            period = period.days
+                
                             sub_col1,sub_col2,sub_col3 = st.columns(3)
                             cal = sub_col1.checkbox("cal")
                             db = sub_col2.checkbox("gcs")
@@ -110,8 +111,7 @@ def main():
                                                             cal,
                                                             ist)
 
-                        col1.dataframe(df[:200],hide_index=True,use_container_width=True,height=435)
-
+                        col1.dataframe(df.head(200),hide_index=True,use_container_width=True,height=435)
                     else:
                         df = pd.DataFrame()
 
@@ -124,27 +124,26 @@ def main():
 
                             selected_option = st.selectbox('Select Device Type', dev_prefixes, key="da_prefix_select")
                             filtered_devices = values[values['devTypeID'] == selected_option]['devID'].to_list()
+                            selected_option = st.multiselect('Present Devices', filtered_devices, key="da_cluster_devices_select")
 
-                            selected_device = st.multiselect('Present Devices', filtered_devices, key="da_cluster_devices_select")
-
-                            if len(selected_device)>0:
+                            if len(selected_option)>0:
                                 sensor_list = []
-
-                                sensors = io_sense.get_device_metadata(device_id=selected_device[0])
-
+                                sensors = io_sense.get_device_metadata(device_id=selected_option[0])
                                 for sensor in sensors["sensors"]:
                                     sensor_list.append(sensor["sensorId"])
-                                
                                 select_sensors = st.multiselect("Select sensor",sensor_list,key="da_cluster_sensors_select")
                                 col_1,col_2 = st.columns([2,2])
                                 start_time = col_1.date_input("Select Start Date",key="da_cluster_start_time")
                                 end_time = col_2.date_input("Select End Date",key="da_cluster_end_time")
-
+                                if start_time <= end_time:
+                                   period = end_time - start_time
+                                else:
+                                    period = start_time - end_time
+                                period = period.days
                                 sub_col1,sub_col2,sub_col3 = st.columns(3)
                                 cal = sub_col1.checkbox("cal")
                                 db = sub_col2.checkbox("gcs")
                                 ist = sub_col3.checkbox("IST",value=True)
-
                                 if len(select_sensors) == 0:
                                     select_sensors=None
 
@@ -154,7 +153,7 @@ def main():
                                     db=None
 
                                 df = Manager.iosense_multi_select_concatinator(io_sense,
-                                                                    selected_device,
+                                                                    selected_option,
                                                                     select_sensors,
                                                                     start_time,
                                                                     end_time,
@@ -175,10 +174,10 @@ def main():
                         if len(iosense_save) > 0 or 'iosense_save' in st.session_state:
                             st.session_state.iosense_save = True
                             Manager.create_parquet(df=df,file_name=iosense_save)
+                            Manager.modify_metdata(iosense_save , selected_option, select_sensors , start_time , end_time , period , cal , db , ist)
                             Manager.delete_in_page_session()
                         else:
                             st.info('Please fill in inputs')
-
                     with sub_tabs2:
                         csv = df.to_csv().encode('utf-8')
                         st.download_button(
@@ -191,7 +190,7 @@ def main():
                         )
                 else:
                     st.toast('Authentication Failed')
-                    col1.error(f"No Devices Added on IO Sense.")
+                    col1.error("No Devices Added on IO Sense.")
         
         except Exception as e:
             col1.exception(e)              

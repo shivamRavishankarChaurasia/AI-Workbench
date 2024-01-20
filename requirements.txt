@@ -23,5 +23,7 @@ xgboost
 tensorflow 
 prophet 
 pmdarima
-imblearn
+imbalanced-learn
+apache-airflow==2.6.3
+
 

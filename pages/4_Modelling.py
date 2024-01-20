@@ -24,52 +24,60 @@ st.set_page_config(layout="wide",page_title="Modelling",page_icon="https://stora
 Manager.faclon_logo()
 
 st.subheader('Modelling')
-tab = st.radio('Select tabs', ['Train Models','Deployment'], horizontal=True,  index=0, key='radio_key', label_visibility='collapsed')
+tab = st.radio('Select tabs', ['Train Models','Deployment' , 'Schedular'], horizontal=True,  index=0, key='radio_key', label_visibility='collapsed')
 st.markdown("<hr style='margin:0px'>", unsafe_allow_html=True)
 
 file_name = Manager.files_details()
 
 if tab == 'Train Models':
-
     if len(file_name) > 1:
+        iosense= False
         col1,col2 = st.columns([3.5,1.5])
         col1_1,col1_2 = col1.columns([1.5,3.5])
         col_1,col_2 = col1.columns([1.5,1.5])
         algorithm_select = col1_1.selectbox("Please Select Following Algorithm: ",['Regression','Classification',"Time-Series"])
 
         df = Manager.create_models_dataframe(algorithm_select)
-
         col1_2.write("    ")
         algo_df = col1_2.data_editor(df,hide_index=True,use_container_width=True)
-
-
         if True in algo_df['Check'].values:
             selected_algorithms = algo_df[algo_df['Check'].values]['Models'].to_list()
-
             with col2.container():
                 selected_file = st.selectbox("Please select File:",file_name)
                 df = Manager.read_parquet(file_name=selected_file)
-
                 if len(df) > 0:
                     if algorithm_select == 'Regression':
-
                         selected_target = st.selectbox('Please Select Target:',df.columns)
                         verification = Manager.check_if_column_type(df,selected_target)
-
                         if verification ==  algorithm_select:
                             st.session_state['multi_select'] = False
                         else:
                             st.session_state['multi_select'] = True
                             col2.error(f"The Selected Target isnt {algorithm_select}")
-
                         remaining_columns = [col for col in df.columns if col != selected_target and not pd.api.types.is_datetime64_any_dtype(df[col])]
                         select_remaining_columns = st.multiselect("Please select X:",remaining_columns,disabled=st.session_state.multi_select)
+                        if  Manager.has_iosense_key(selected_file):
+                            iosense_checkbox = st.checkbox("Scheduler:")
+                            if  iosense_checkbox:
+                                selected_date, selected_time, frequency, periods, rolling_checkbox = Manager.get_scheduling_parameters()
+                                if st.button("Schedule", key="schedule_button", type="primary", use_container_width=True):
+                                    try:
+                                        st.success("Scheduled successfully!")
+                                        st.toast("Updating iosense metadata...")
+                                    except FileNotFoundError:
+                                        st.error("File not found. Please check the file path.")
+                                    except Exception as e:
+                                        st.error(f"An error occurred: {e}")
+                        else:
+                            st.checkbox("Schedular:", key="default_checkbox", value=False, disabled=True)
+
 
                     elif algorithm_select == 'Time-Series':
                         try:
                             if len(selected_algorithms)>1:
                                 col1.error("Please select only one algorithm")
                             select_remaining_columns = "0"
+
                             if len(df.select_dtypes(include=['datetime64','datetime64[ns]']).columns) != 0:
                                 selected_time = st.selectbox('Please Select Time:', df.select_dtypes(include=['datetime64','datetime64[ns]']).columns)
                                 if len(df.select_dtypes(include=np.number).columns) != 0:
@@ -87,7 +95,8 @@ if tab == 'Train Models':
                                         m = "0"
                                         select_remaining_columns = "yes" 
                 
-                                    elif 'LSTM' in selected_algorithms:
+                                    # elif 'LSTM' in selected_algorithms:
+                                    else:
                                         max_sequence_length = int(0.8 * len(df))
                                         m = "0"
                                         selected_type = col2.selectbox("Please select the type  ",["Light" , "Medium" ,"Heavy" , "Custom"])
@@ -102,16 +111,29 @@ if tab == 'Train Models':
                                         else:
                                            time_length = col2.number_input("Sequence length", min_value=1, max_value=50, value=3, help="The number of time steps in each input sequence. This depends on how far back in time you want your model to consider for making predictions.")       
                                            select_remaining_columns = "yes"
+                                    if  Manager.has_iosense_key(selected_file):
+                                        iosense_checkbox = st.checkbox("Scheduler:")
+                                        if  iosense_checkbox:
+                                            selected_date, selected_time, frequency, periods, rolling_checkbox = Manager.get_scheduling_parameters()
+                                            if st.button("Schedule", key="schedule_button", type="primary", use_container_width=True):
+                                                try:
+                                                    st.success("Scheduled successfully!")
+                                                    st.toast("Updating iosense metadata...")
+                                                except FileNotFoundError:
+                                                    st.error("File not found. Please check the file path.")
+                                                except Exception as e:
+                                                    st.error(f"An error occurred: {e}")
                                     else:
-                                        st.error("Choose the Time series algorithm")
-
+                                        st.checkbox("Schedular:", key="default_checkbox", value=False, disabled=True)
+                                # else:
+                                #     st.error("Choose the Time series algorithm")
+                                        
                                 else:
                                     select_remaining_columns = "0"
                                     st.error('Numerical Target is Missing.')
                             else:
                                 st.error('DateTime is mandatory.')
                                 select_remaining_columns = "0"
-
                         except:
                             col2.error("Can't perform such operations")
                             select_remaining_columns = "0"
@@ -119,7 +141,6 @@ if tab == 'Train Models':
                     elif algorithm_select == 'Classification':
                         categorical_columns = df.select_dtypes(include='object').columns.to_list()
                         select_remaining_columns = "0"
-
                         if len(categorical_columns) > 0:
                             selected_target = st.selectbox("Please select the target:", categorical_columns)
                             verification = Manager.check_if_column_type(df, selected_target)
@@ -132,11 +153,26 @@ if tab == 'Train Models':
 
                             remaining_columns = [col for col in df.columns if col != selected_target and not pd.api.types.is_datetime64_any_dtype(df[col])]
                             select_remaining_columns = st.multiselect("Please select X:", remaining_columns, disabled=st.session_state.multi_select)
+                            if  Manager.has_iosense_key(selected_file):
+                                iosense_checkbox = st.checkbox("Scheduler:")
+                                if  iosense_checkbox:
+                                    selected_date, selected_time, frequency, periods, rolling_checkbox = Manager.get_scheduling_parameters()
+                                    if st.button("Schedule", key="schedule_button", type="primary", use_container_width=True):
+                                        try:
+                                            st.success("Scheduled successfully!")
+                                            st.toast("Updating iosense metadata...")
+                                        except FileNotFoundError:
+                                            st.error("File not found. Please check the file path.")
+                                        except Exception as e:
+                                            st.error(f"An error occurred: {e}")
+                            else:
+                                st.checkbox("Schedular:", key="default_checkbox", value=False, disabled=True)
                         else:
                             col2.warning("No categorical columns found.")
 
                     else:
                         select_remaining_columns = "0"
+
 
                     if len(select_remaining_columns) > 1:
 
@@ -150,14 +186,14 @@ if tab == 'Train Models':
                               scaling_disable= True
 
                             scaling_method = col_12.selectbox("Please select scaling:", ['Standard Scaler', 'Min Max Scaler', 'Robust Scaler'], disabled=scaling_disable)
-
-                        execute_train = col2.button('Train your model',type='primary',use_container_width=True)
-
+                        # disable_execute_button = Manager.has_iosense_key(selected_file)
+                        # execute_train = st.button('Train your model', type='primary', use_container_width=True, disabled=disable_execute_button)
+                        disable_execute_button = iosense_checkbox if 'iosense_checkbox' in locals() else False
+                        execute_train = st.button('Train your model', type='primary', use_container_width=True, disabled=disable_execute_button)
                         if execute_train or 'execute_train'in st.session_state:
                             st.session_state.execute_train = True
                             try:
                                 if algorithm_select == 'Regression':
-
                                     config = {
                                         "filename": selected_file,
                                         "algorithm": algorithm_select,
@@ -165,10 +201,13 @@ if tab == 'Train Models':
                                         "yTarget": selected_target,
                                         "xTarget": select_remaining_columns,
                                         "testSize": test_size,
-                                        "scaler": scaling_method
+                                        "scaler": scaling_method,
+                                        "iosense":iosense
+                                
                                     }
-
                                     response = requests.post('http://127.0.0.1:8000/regression',json=config)
+                                   
+                                    Manager.create_scheduling_metadata(config ,train_date=selected_date, train_time=selected_time, n_periods=periods, frequency=frequency, rolling=rolling_checkbox )   
 
                                 elif algorithm_select == 'Time-Series':
                                     config = {
@@ -178,6 +217,7 @@ if tab == 'Train Models':
                                         "yTarget": selected_target,
                                         "testSize": test_size,
                                         "timeCol": selected_time,
+                                        "iosense":  False
                                     }
                                     if "LSTM" in selected_algorithms:
                                         if selected_type == "Custom":       
@@ -201,8 +241,9 @@ if tab == 'Train Models':
                                         config.update({
                                             "m": int(m)
                                         })
+                                        Manager.create_scheduling_metadata(config ,train_date=selected_date, train_time=selected_time, n_periods=periods, frequency=frequency, rolling=rolling_checkbox )   
                                         response = requests.post('http://127.0.0.1:8000/timeseries', json=config)
-
+                            
                                 elif algorithm_select  == "Classification":
                                     config = {
                                         "filename": selected_file,
@@ -211,9 +252,10 @@ if tab == 'Train Models':
                                         "yTarget": selected_target,
                                         "xTarget": select_remaining_columns,
                                         "testSize": test_size,
-                                        "scaler": scaling_method
+                                        "scaler": scaling_method,
+                                        "iosense": False
                                     }
-
+                                    Manager.create_scheduling_metadata(config ,train_date=selected_date, train_time=selected_time, n_periods=periods, frequency=frequency, rolling=rolling_checkbox )   
                                     response = requests.post('http://127.0.0.1:8000/classification',json=config)
                                 else:
                                     response = 404
@@ -239,6 +281,8 @@ if tab == 'Train Models':
     else:
         st.error("Please Import CSV")
 
+
+
 elif tab == "Deployment":
     
     if len(Manager.get_mlflow_experiments_name()) == 0:
@@ -252,23 +296,20 @@ elif tab == "Deployment":
 
         selected_file = col2.selectbox("Please Select Trained Models",Manager.get_mlflow_experiments_name())
         df = mlflow.search_runs(experiment_names=[selected_file])
-
+        # st.write(df)
         if len(df) > 0:
-            
             display_df = df[['tags.Model','end_time','run_id']]
             display_df = display_df.rename(columns={'tags.Model':'Model Name',"end_time":'Time Created'})
             display_df['Time Created'] = display_df['Time Created'].apply(lambda x: pd.to_datetime(x).replace(microsecond=0).tz_localize(None) + pd.Timedelta(hours=5.5))
             display_df.insert(0, 'Check', False)
-
             display_df = col2.data_editor(display_df,hide_index=True,use_container_width=True,height=250)
-
+            # display_df = col2.data_editor(display_df,hide_index=True,use_container_width=True,height=250)
             if (display_df['Check'] == True).any():
                 if (display_df['Check'].sum() > 1):
                     col1.warning('Please select one check box at a time')
                 else:
                     run_id = display_df[display_df['Check'] == True]['run_id'].iloc[0]
                     model_name = display_df[display_df['Check'] == True]['Model Name'].iloc[0]
-
                     try:
                         if df[df["run_id"] == run_id]["status"].iloc[0] == "FINISHED":
 
@@ -342,8 +383,69 @@ elif tab == "Deployment":
 
             else:
                 col1.info("Please Select One Run ID!")
-
-
-
         else:
             col1.error("Fault Detected!!!!")
+
+
+
+elif tab == "Schedular":
+    if len(Manager.get_mlflow_experiments_name()) == 0:
+        st.error('To Activate this Feature! Please Train Models')
+
+    else:
+        col1,col2 = st.columns([3,2])
+        placeholder = col1.empty()
+        col1_1,col1_2 = col1.columns(2)
+
+
+        selected_file = col2.selectbox("Please Select Trained Models",Manager.get_mlflow_experiments_name())
+        df = mlflow.search_runs(experiment_names=[selected_file])
+        # df[df["iosense"] = "True"]
+        st.write(df)
+
+        if len(df) > 0:
+            
+            display_df = df[['tags.Model','end_time','run_id']]
+            display_df = display_df.rename(columns={'tags.Model':'Model Name',"end_time":'Time Created'})
+            display_df['Time Created'] = display_df['Time Created'].apply(lambda x: pd.to_datetime(x).replace(microsecond=0).tz_localize(None) + pd.Timedelta(hours=5.5))
+            display_df.insert(0, 'Schedule', False)
+
+            display_df = col2.data_editor(display_df,hide_index=True,use_container_width=True,height=250)
+
+            if (display_df['Schedule'] == True).any():
+                if (display_df['Schedule'].sum() > 1):
+                    col1.warning('Please select one check box at a time')
+                else:
+                    run_id = display_df[display_df['Schedule'] == True]['run_id'].iloc[0]
+                    model_name = display_df[display_df['Schedule'] == True]['Model Name'].iloc[0]
+
+                    try:
+                        if df[df["run_id"] == run_id]["status"].iloc[0] == "FINISHED":
+
+                            exp_id = df[df['run_id'] == run_id]['experiment_id'].iloc[0]
+
+                            with open(f"mlruns/{exp_id}/{run_id}/figure.pkl", 'rb') as pickle_file:
+                                fig = pickle.load(pickle_file)
+
+                            with open(f"mlruns/{exp_id}/{run_id}/report.pkl", 'rb') as pickle_file:
+                                metrices_df = pickle.load(pickle_file)
+                            
+                            placeholder.plotly_chart(fig,use_container_width=True)
+                            
+                            col2.dataframe(metrices_df,use_container_width=True,hide_index=True)
+
+                            col2_1,col2_2 = col2.columns(2)
+
+                            if col2_1.button('Deploy',use_container_width=True,type='primary'):
+                                bento_response = deploy_model(experiment_name=selected_file,run_id=run_id)
+                                bento_response = pd.DataFrame(bento_response)      
+
+                            if col2_2.button('Delete', use_container_width=True, type='primary'):
+                                bento_df = pd.read_parquet('api_detailed.parquet')                              
+
+                    except Exception as e:
+                        print("Exception occured in Modelling....Please Refresh!!",e)   
+
+
+
+

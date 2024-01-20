@@ -191,6 +191,7 @@ class Regression():
         self.df = self.df.fillna(method='bfill')
         self.df_x = self.df[config['xTarget']]
         self.df_y = self.df[config['yTarget']]
+        self.iosense=config["iosense"]
         
         try:
             for category in self.df_x.columns:
@@ -284,6 +285,8 @@ class Regression():
             mlflow.set_tag("Model", self.key)
             for key, value in self.metrics_dict.items():
                 mlflow.log_metric(key, value)
+
+            mlflow.set_tag('iosense',self.iosense)
 
             mlflow.sklearn.log_model(self.model, self.key)
             run_id = mlflow.active_run()

@@ -52,10 +52,12 @@ try:
                 placeholder3.dataframe(df_outliers,hide_index=True
                                        ,height=350,use_container_width=True)
             else:
-                ini_col1.warning("Outliers are not present in these columns", icon="🔥")
+                ini_col1.warning("No outliers detected in the selected column", icon ="🔥")
+
             outliers_present = len(df_outliers) > 0
+
         # Now outliers are detected to remove  it click the Remove outliers button (internally it uses two method IQR and Z-score to remove the outliers ) 
-            if ini_col2.button("Remove Outliers", use_container_width=True, type="primary", disabled=not outliers_present) or "outliers_remove" in st.session_state:
+            if ini_col2.button("Remove Outliers", use_container_width=True, type="primary", disabled= not outliers_present) or "outliers_remove" in st.session_state:
                 if outliers_present:
                     st.session_state.outliers_remove = True
                 remove_outliers =  Manager.drop_outliers(data_frame,df_outliers)
@@ -94,6 +96,7 @@ try:
                     mime='text/csv',
                     )
 
+
         elif operation == "Data Imbalance": 
             st.subheader(operation)
             ini_col1,ini_col2 = st.columns([3.5,1.2])
@@ -101,36 +104,41 @@ try:
             placeholder1 = col1.empty()
             placeholder2 = col2.empty()
             placeholder3 = col2.empty()
-
             selected_dataset = ini_col2.selectbox("Please select the Dataset", file_name, key='selected_dataset',   
                                                     index=file_name.index(st.session_state['default_name']))
             st.session_state['default_name'] = selected_dataset
             df = Manager.read_parquet(file_name=selected_dataset)
-
             selected_col = ini_col2.selectbox("Select the Column", Manager.get_imbalance_cols(df), key="imb_select_col")
-            if selected_col != None:
+            operation_to_use = ini_col2.radio(label="Select the Operation", 
+                                                options=['SMOTE', 'Over/Under Sampling' ], 
+                                                horizontal=False, label_visibility="collapsed")
+            resample_disable = True
+            if selected_col is not None:
             # Display pie chart, value counts, and the DataFrame
                 placeholder1.plotly_chart(Manager.plot_imbalance_piechart(df, selected_col), 
                                             use_container_width=True)
                 values_count = df[selected_col].value_counts()
                 placeholder2.write(values_count)
                 placeholder3.dataframe(df,hide_index = True )
-
-            operation_to_use = ini_col2.radio(label="Select the Operation", 
-                                                options=['SMOTE', 'Over/Under Sampling' ], 
-                                                horizontal=False, label_visibility="collapsed")
+                resample_disable = True
+            else:
+                ini_col1.info("The dataset is well-balanced, which is great for analysis!" , icon = "🔥")
+                resample_disable = False 
+                
+           
             # Smote and over/under sampling techniques are used to resample the imbalance data
             if operation_to_use == "SMOTE":
-                if ini_col2.button("Resample", key="resample_Smote" , type = "primary" , use_container_width = True) or 'smote_resample' in st.session_state:
-                    st.session_state['smote_resample'] = True
+                resample_disable = selected_col is None
+                if ini_col2.button("Resample", key="resample_Smote" , type = "primary" , use_container_width = True , disabled= resample_disable):
                     # perform Smote resampling
-                    resampled_df = Manager.smote_resampling(df, selected_col, operation_to_use)
+                    resampled_df = Manager.smote_resampling(df, selected_col)
                     # Display resampled data, value counts, and options for updating, saving, and downloading
                     placeholder1.plotly_chart(Manager.plot_imbalance_piechart(resampled_df, selected_col), use_container_width=True)
                     values_count = resampled_df[selected_col].value_counts()
                     placeholder2.write(values_count)
                     placeholder3.dataframe(resampled_df,hide_index = True )
                     ini_col2.success("Operation performed successfully")
+                    Manager.delete_pages_sessions()
                     # Options for updating, saving, and downloading
                     storage_tab1,storage_tab2,storage_tab3 = ini_col2.tabs(['Update','Save','Download'])    
                     with storage_tab1:
@@ -168,39 +176,44 @@ try:
                             mime='text/csv',
                             )
 
-            elif operation_to_use == "Over/Under Sampling":
+            else:     
             # Create a DataFrame for specifying class sampling options given by the user
                 columns_data = []
-                for index, value in df[selected_col].value_counts().items():
-                    column_info = {
-                        "ClassName": index,
-                        "Count": value,
-                        "Null Values %": df[df[selected_col] == index][selected_col].isnull().sum().round(1) * 100,
-                        "Select": False,
-                        "Replacement": False,
-                        "No_of_Samples": ""
-                    }
-                    columns_data.append(column_info)
-                    info_df = pd.DataFrame(columns_data)
+                if selected_col:
+                    for index, value in df[selected_col].value_counts().items():
+                        column_info = {
+                            "ClassName": index,
+                            "Count": value,
+                            "Null Values %": df[df[selected_col] == index][selected_col].isnull().sum().round(1) * 100,
+                            "Select": False,
+                            "Replacement": False,
+                            "No_of_Samples": ""
+                        }
+                        columns_data.append(column_info)
+                        info_df = pd.DataFrame(columns_data)
 
-                advance_df = ini_col2.data_editor(
-                    info_df,
-                    hide_index=True,
-                    use_container_width=True,
-                    column_config={
-                        "Select": st.column_config.CheckboxColumn("Select", default=False),
-                        "No_of_Samples": st.column_config.NumberColumn("No of Samples"),
-                        "Replacement": st.column_config.CheckboxColumn("Replacement", default=False),
-                        })
+    
+                    advance_df = ini_col2.data_editor(
+                        info_df,
+                        hide_index=True,
+                        use_container_width=True,
+                        column_config={
+                            "Select": st.column_config.CheckboxColumn("Select", default=False),
+                            "No_of_Samples": st.column_config.NumberColumn("No of Samples"),
+                            "Replacement": st.column_config.CheckboxColumn("Replacement", default=False),
+                            })
+                    if sum(advance_df["Select"]) > 1:
+                        ini_col2.error("Select only one class at a time.")
+                        resample_button_disabled = True  
+                    else:   
                 
-                if sum(advance_df["Select"]) > 1:
-                    ini_col2.error("Select only one class at a time.")
-                    resample_button_disabled = True  
+                     resample_button_disabled = False  
                 else:
-                    resample_button_disabled = False  
-                
-                if ini_col2.button("Resample", key="resample_sampling" , type = "primary" , use_container_width = True ) or "resample_btn" in st.session_state:
+                    pass
+                resample_button_disabled = selected_col is None
+                if ini_col2.button("Resample", key="resample_sampling", type="primary", use_container_width=True , disabled = resample_button_disabled) or "resample_btn" in st.session_state:
                     st.session_state.resample_btn = True
+
                 # Display resampled data, value counts, and options for updating, saving, and downloading13
                     sampling_df , metadata = Manager.over_under_sampling(df ,  advance_df , selected_col)
                     placeholder1.plotly_chart(Manager.plot_imbalance_piechart(sampling_df, selected_col), use_container_width=True)
@@ -242,8 +255,8 @@ try:
                         file_name=f'Operated_{selected_dataset}_{datetime.now()}.csv',
                         mime='text/csv',
                         )
-            else:
-                st.write("Please select the operation") 
+            # else:
+            #     st.write("Please select the operation") 
         
         elif operation == "Data Transformation":
             st.subheader("Data Transformation")

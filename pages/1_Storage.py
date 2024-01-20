@@ -67,7 +67,7 @@ if len(file_name) > 1:
                     if st.button("Update",key="random_update"):
                         try:
                             Manager.update_parquet(df=df,file_name=tab0_name)
-                            Manager.modify_metadata(file_name=tab0_name,new_process=[f"df.drop(columns={cols_to_drop},axis=1)"])
+                            Manager.modify_metadata(file_name=tab0_name,new_process=[f"df = df.drop(columns={cols_to_drop},axis=1)"])
                             Manager.delete_pages_sessions(key='default_name')
                             time.sleep(5)
                         except Exception as e:
@@ -174,37 +174,37 @@ if len(file_name) > 1:
                 if agg_select == 'Ffill':
                     st.session_state.flag = True
                     df.fillna(method='ffill',inplace=True)
-                    st.session_state.metadata_store = [f"df.fillna(method='ffill',inplace=True)"]
+                    st.session_state.metadata_store = [f"df=df.fillna(method='ffill',inplace=True)"]
                 elif agg_select == 'Bfill':  
                     st.session_state.flag = True
                     df.fillna(method='bfill', inplace=True)
-                    st.session_state.metadata_store = [f"df.fillna(method='bfill',inplace=True)"]
+                    st.session_state.metadata_store = [f"df=df.fillna(method='bfill',inplace=True)"]
                 elif agg_select=='0':
                     st.session_state.flag = True
                     df.fillna(0,inplace=True)
-                    st.session_state.metadata_store = [f"df.fillna(method=0,inplace=True)"]
+                    st.session_state.metadata_store = [f"df=df.fillna(method=0,inplace=True)"]
                 elif agg_select == 'Mean':  
                     st.session_state.flag = True
                     df.fillna(df.mean(), inplace=True)
-                    st.session_state.metadata_store = [f"df.fillna(df.mean()),inplace=True)"]
+                    st.session_state.metadata_store = [f"df=df.fillna(df.mean()),inplace=True)"]
                 elif agg_select == 'Median':
                     st.session_state.flag = True
                     df.fillna(df.median(), inplace=True)
-                    st.session_state.metadata_store = [f"df.fillna(df.median()),inplace=True)"]
+                    st.session_state.metadata_store = [f"df=df.fillna(df.median()),inplace=True)"]
                 elif agg_select == 'Min':
                     st.session_state.flag = True
                     df.fillna(df.min(), inplace=True)
-                    st.session_state.metadata_store = [f"df.fillna(df.min()),inplace=True)"]
+                    st.session_state.metadata_store = [f"df=df.fillna(df.min()),inplace=True)"]
                 elif agg_select == 'Max':
                     st.session_state.flag = True
                     df.fillna(df.max(), inplace=True)
-                    st.session_state.metadata_store = [f"df.fillna(df.max()),inplace=True)"]
+                    st.session_state.metadata_store = [f"df=df.fillna(df.max()),inplace=True)"]
                 elif agg_select == 'Custom String':
                     fill_value = col2.text_input("Please type in string")
                     if len(fill_value) > 0:
                         st.session_state.flag = True
                         df.fillna(str(fill_value),inplace=True)
-                        st.session_state.metadata_store = [f"df.fillna({str(fill_value)}),inplace=True)"]
+                        st.session_state.metadata_store = [f"df=df.fillna({str(fill_value)}),inplace=True)"]
                 elif agg_select == 'Custom Integer':
                     fill_value = col2.text_input("Please type in numeric value")
                     if len(fill_value) > 0:
@@ -212,7 +212,7 @@ if len(file_name) > 1:
                             fill_value = float(fill_value)
                             df.fillna(fill_value,inplace=True)
                             st.session_state.flag = True
-                            st.session_state.metadata_store = [f"df.fillna({float(fill_value)}),inplace=True)"]
+                            st.session_state.metadata_store = [f"df=df.fillna({float(fill_value)}),inplace=True)"]
                         except Exception as e:
                             col2.error('Invalid Integer Type')
                             st.session_state.flag = False
@@ -433,8 +433,8 @@ if len(file_name) > 1:
                     if st.button("Update",key="resample_update"):
                         try:
                             Manager.update_parquet(df=df,file_name=resample_select)
-                            Manager.modify_metadata(file_name=resample_select,new_process=[f"df.set_index(df['{resample_column}'],inplace=True)",
-                                                             f"resampler(df,'{frequency}','{key}','{aggregation_mode}')"])
+                            Manager.modify_metadata(file_name=resample_select,new_process=[f"df=df.set_index(df['{resample_column}'],inplace=True)",
+                                                             f"df=resampler(df,'{frequency}','{key}','{aggregation_mode}')"])
                             Manager.delete_pages_sessions(key='default_name')
                             time.sleep(5)
                         except Exception as e:

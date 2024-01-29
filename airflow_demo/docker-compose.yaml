@@ -48,6 +48,7 @@ x-airflow-common:
   # Comment the image line, place your Dockerfile in the directory where you placed the docker-compose.yaml
   # and uncomment the "build" line below, Then run `docker-compose build` to build the images.
   image: ${AIRFLOW_IMAGE_NAME:-utkarshns/airflow}
+ 
   #build: .
   #env_file:
     #- /home/faclon/compute_module/.env
@@ -63,7 +64,7 @@ x-airflow-common:
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     API: "65448ca8bdf2dc0c6522a693"
     URL: "datads.iosense.io"
-    CONTAINER_NAME: 'WUHaM30tzELCSrfTypGF6A3KNubVIVHSiagTyZyWpUg='
+    CONTAINER_NAME: "WUHaM30tzELCSrfTypGF6A3KNubVIVHSiagTyZyWpUg="
     AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
     _PIP_ADDITIONAL_REQUIREMENTS: |
       iosense_connect
@@ -112,6 +113,8 @@ x-airflow-common:
     - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
     - /home/shivam/Desktop/AI-workbench/Utilities:/opt/airflow/dags/Utilities
     - /home/shivam/Desktop/AI-workbench/Database:/opt/airflow/Database
+    - /home/shivam/Desktop/AI-workbench/api.py:/opt/airflow/api
+    - /home/shivam/Desktop/AI-workbench/airflow_demo/dags/airflow.cfg:/opt/airflow/airflow.cfg
     # - ${AIRFLOW_PROJ_DIR:-.}/airflow.cfg:/opt/airflow/airflow.cfg
   
   user: "${AIRFLOW_UID:-50000}:0"

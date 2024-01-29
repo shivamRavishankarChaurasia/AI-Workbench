@@ -34,7 +34,7 @@ def main():
                         st.warning('Empty Dataframe. Operation Denied')
                         time.sleep(3)
                         break
-                    st.dataframe(df[:200],hide_index=True,use_container_width=True)
+                    st.dataframe(df[:50],hide_index=True,use_container_width=True)
                 except Exception as e:
                     st.error(f"Operation Failed....{e}")
                     break
@@ -91,13 +91,13 @@ def main():
                 
                             sub_col1,sub_col2,sub_col3 = st.columns(3)
                             cal = sub_col1.checkbox("cal")
-                            db = sub_col2.checkbox("gcs")
+                            db = sub_col2.checkbox("gcs", value=True)
                             ist = sub_col3.checkbox("IST",value=True)
 
                         if len(select_sensors) == 0:
                             select_sensors=None
 
-                        if db is True:
+                        if db:
                             db='gcs'
                         else:
                             db=None
@@ -111,7 +111,7 @@ def main():
                                                             cal,
                                                             ist)
 
-                        col1.dataframe(df.head(200),hide_index=True,use_container_width=True,height=435)
+                        col1.dataframe(df.head(50),hide_index=True,use_container_width=True,height=435)
                     else:
                         df = pd.DataFrame()
 
@@ -142,15 +142,19 @@ def main():
                                 period = period.days
                                 sub_col1,sub_col2,sub_col3 = st.columns(3)
                                 cal = sub_col1.checkbox("cal")
-                                db = sub_col2.checkbox("gcs")
+                                db = sub_col2.checkbox("gcs", value=True)
                                 ist = sub_col3.checkbox("IST",value=True)
                                 if len(select_sensors) == 0:
                                     select_sensors=None
+                                st.write(db)
 
-                                if db is True:
-                                    db='gcs'
+                                if db:
+                                    db="gcs"
+                                    st.write(db)
+
                                 else:
                                     db=None
+
 
                                 df = Manager.iosense_multi_select_concatinator(io_sense,
                                                                     selected_option,
@@ -161,7 +165,7 @@ def main():
                                                                     cal,
                                                                     ist)
 
-                                col1.dataframe(df[:200],hide_index=True,use_container_width=True,height=435)
+                                col1.dataframe(df[:50],hide_index=True,use_container_width=True,height=435)
 
                             else:
                                 st.info('Please select devices')
@@ -174,7 +178,7 @@ def main():
                         if len(iosense_save) > 0 or 'iosense_save' in st.session_state:
                             st.session_state.iosense_save = True
                             Manager.create_parquet(df=df,file_name=iosense_save)
-                            Manager.modify_metdata(iosense_save , selected_option, select_sensors , start_time , end_time , period , cal , db , ist)
+                            Manager.invoke_iosense(iosense_save , selected_option, select_sensors , start_time , end_time , period , cal , db , ist)
                             Manager.delete_in_page_session()
                         else:
                             st.info('Please fill in inputs')

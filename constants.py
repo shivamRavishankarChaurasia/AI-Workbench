@@ -12,10 +12,10 @@ DEFAULT BASE FOR ENTIRE WORKBENCH
 """
 DEFAULT_STORAGE = "Database/{file}.parquet"
 DEFAULT_METADATA = "Database/Metadata/{file}.json"
-DEFAULT_IOSENSE_METADATA = "Database/iosense_Metadata/{file}.json"
+DEFAULT_SCHEDULE_PATH = "Database/ScheduleMetadata/{file}.json"
 
 URL = os.getenv('URL')
-CONTAINER = os.getenv('CONTAINER_NAME')
+CONTAINER= b"WUHaM30tzELCSrfTypGF6A3KNubVIVHSiagTyZyWpUg="
 
 BASE_DATE = datetime.datetime(1970, 1, 1)
 
@@ -30,3 +30,4 @@ ROLLING_OPTIONS = ['min', 'max', 'mean', 'median', 'sum', 'count', 'std', 'var']
 
 FEATURE_ENGINEERING_OPTIONS = ['Encoding','Scaling','Shift/Roll Operation','Arithematic']
 TRIGNOMETRIC_OPTIONS = ['sin', 'cos', 'tan', 'arcsin', 'arccos', 'arctan', 'sinh', 'cosh', 'tanh']
+

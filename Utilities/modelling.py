@@ -15,8 +15,8 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 from sklearn.preprocessing import MinMaxScaler, RobustScaler, StandardScaler
 from sklearn.preprocessing import OneHotEncoder
-from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
 
 # Regression-algos
 from sklearn.ensemble import RandomForestRegressor
@@ -184,7 +184,10 @@ def check_target_type(df):
 
 class Regression():
     def __init__(self, config, key):
-        self.df = pd.read_parquet(f"""Database/{config['filename']}.parquet""")
+        if config["iosense"] == "true":
+            self.df = pd.read_parquet(f"""Database/DagsData/{config['filename']}.parquet""")
+        else:
+            self.df = pd.read_parquet(f"""Database/{config['filename']}.parquet""")
         self.config = config
         self.key=key
         self.df = self.df.fillna(method='ffill')
@@ -192,14 +195,11 @@ class Regression():
         self.df_x = self.df[config['xTarget']]
         self.df_y = self.df[config['yTarget']]
         self.iosense=config["iosense"]
-        
         try:
             for category in self.df_x.columns:
                 if np.issubdtype(self.df_x[category].dtype, np.datetime64):
                     self.df_x.drop([category], inplace=True, axis=1)
-
             self.backup = self.df_x
-
             self.encoder = OneHotEncoder(
                         categories='auto',  # Categories per feature
                         drop=None, # Whether to drop one of the features
@@ -320,14 +320,17 @@ class Regression():
 
 class Classification():
     def __init__(self , config , key ):
-
-        self.df = pd.read_parquet(f"""Database/{config['filename']}.parquet""")
+        if config["iosense"] == "true":
+            self.df = pd.read_parquet(f"""Database/DagsData/{config['filename']}.parquet""")
+        else:
+            self.df = pd.read_parquet(f"""Database/{config['filename']}.parquet""")
         self.config = config 
         self.key = key
         self.df = self.df.fillna(method= 'ffill')
         self.df = self.df.fillna(method = 'bfill')
         self.df_x = self.df[config['xTarget']]
         self.df_y = self.df[config['yTarget']]
+        self.iosense = config["iosense"]
 
         self.multiclass = check_target_type(self.df_y)
         print(self.multiclass)
@@ -453,7 +456,7 @@ class Classification():
             mlflow.set_tag("Model", self.key)
             for key, value in self.metrics_dict.items():
                 mlflow.log_metric(key, value)
-
+            mlflow.set_tag("iosense",self.iosense)
             mlflow.sklearn.log_model(self.model, self.key)
             run_id = mlflow.active_run()
 
@@ -490,7 +493,11 @@ class Classification():
 
 class TimeSeries():
     def __init__(self, config, key):
-        self.df = pd.read_parquet(f"""Database/{config['filename']}.parquet""")
+        if config["iosense"] == "true":
+            self.df = pd.read_parquet(f"""Database/DagsData/{config['filename']}.parquet""")
+        else:
+            self.df = pd.read_parquet(f"""Database/{config['filename']}.parquet""")
+        self.config = config
         self.config = config
         self.key = key
         self.df[config['timeCol']] = pd.to_datetime(self.df[config['timeCol']])
@@ -504,6 +511,7 @@ class TimeSeries():
         self.split_index = int(len(self.df_y) * (1 - config['testSize']))
         self.train_y = self.df_y.iloc[:self.split_index]
         self.test_y = self.df_y.iloc[self.split_index:]
+        self.iosense = config["iosense"]
 
     def train_models(self):
         if self.key == 'SARIMAX':
@@ -611,6 +619,7 @@ class TimeSeries():
                 mlflow.sklearn.log_model(self.fitted_model, self.key)
                 with open(f"mlruns/{run_id.info.experiment_id}/{run_id.info.run_id}/freq.pkl", "wb") as f:
                     pickle.dump(self.frequency, f)
+            mlflow.set_tag("iosense", self.iosense)
 
         with open(f"mlruns/{run_id.info.experiment_id}/{run_id.info.run_id}/model.pkl", "wb") as f:
             pickle.dump(self.fitted_model, f)
@@ -633,6 +642,11 @@ class TimeSeries():
 
 class LSTMTimeSeries():
     def __init__(self, config , key):
+        if config["iosense"] == "true":
+            self.df = pd.read_parquet(f"""Database/DagsData/{config['filename']}.parquet""")
+        else:
+            self.df = pd.read_parquet(f"""Database/{config['filename']}.parquet""")
+        self.config = config
         self.df = pd.read_parquet(f"Database/{config['filename']}.parquet")
         self.config = config
         self.key = key
@@ -645,10 +659,10 @@ class LSTMTimeSeries():
         self.df_y = self.df[config['yTarget']]
         self.df_y = self.df_y.rename_axis("DATE")        
         self.df_y.dropna(axis=0, inplace=True)
-
         self.split_index = int(len(self.df_y) * (1 - config['testSize']))
         self.df_train_y = self.df_y.iloc[:self.split_index]
         self.df_test_y = self.df_y.iloc[self.split_index:]
+        self.iosense = config["iosense"]
    
     def lstm_model(self):
         if self.config['selectedType'] in ["Light", "Medium", "Heavy"]:
@@ -748,7 +762,7 @@ class LSTMTimeSeries():
             # for key, value in self.metrics_dict.items():
             #     mlflow.log_metric(key, value)
             # Log the LSTM model using mlflow.keras.log_model
-        
+            mlflow.set_tag("iosense", self.iosense)
             mlflow.sklearn.log_model(self.model, self.key)
             run_id = mlflow.active_run()
             

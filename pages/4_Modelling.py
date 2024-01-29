@@ -26,17 +26,18 @@ Manager.faclon_logo()
 st.subheader('Modelling')
 tab = st.radio('Select tabs', ['Train Models','Deployment' , 'Schedular'], horizontal=True,  index=0, key='radio_key', label_visibility='collapsed')
 st.markdown("<hr style='margin:0px'>", unsafe_allow_html=True)
+schedule_folder = "Database/ScheduleMetadata"
 
 file_name = Manager.files_details()
-
+iosense_true_experiments, iosense_false_experiments = Manager.get_mlflow_experiments()
 if tab == 'Train Models':
     if len(file_name) > 1:
-        iosense= False
+        # if 'iosense' not in st.session_state:
+        #   st.session_state['iosense'] = False
         col1,col2 = st.columns([3.5,1.5])
         col1_1,col1_2 = col1.columns([1.5,3.5])
         col_1,col_2 = col1.columns([1.5,1.5])
         algorithm_select = col1_1.selectbox("Please Select Following Algorithm: ",['Regression','Classification',"Time-Series"])
-
         df = Manager.create_models_dataframe(algorithm_select)
         col1_2.write("    ")
         algo_df = col1_2.data_editor(df,hide_index=True,use_container_width=True)
@@ -44,6 +45,20 @@ if tab == 'Train Models':
             selected_algorithms = algo_df[algo_df['Check'].values]['Models'].to_list()
             with col2.container():
                 selected_file = st.selectbox("Please select File:",file_name)
+                is_file_scheduled = False
+                # Check if the selected file is already scheduled
+                for filename in os.listdir(schedule_folder):
+                    if filename.endswith(".json"):
+                        with open(os.path.join(schedule_folder, filename), 'r') as file:
+                            metadata = json.load(file)
+                            if metadata.get("fileName", "") == selected_file:
+                                is_file_scheduled = True
+                                break
+                if  Manager.has_iosense_key(selected_file):
+                    st.session_state['iosense'] = False
+                else:
+                    st.session_state['iosense'] = True
+
                 df = Manager.read_parquet(file_name=selected_file)
                 if len(df) > 0:
                     if algorithm_select == 'Regression':
@@ -56,22 +71,6 @@ if tab == 'Train Models':
                             col2.error(f"The Selected Target isnt {algorithm_select}")
                         remaining_columns = [col for col in df.columns if col != selected_target and not pd.api.types.is_datetime64_any_dtype(df[col])]
                         select_remaining_columns = st.multiselect("Please select X:",remaining_columns,disabled=st.session_state.multi_select)
-                        if  Manager.has_iosense_key(selected_file):
-                            iosense_checkbox = st.checkbox("Scheduler:")
-                            if  iosense_checkbox:
-                                selected_date, selected_time, frequency, periods, rolling_checkbox = Manager.get_scheduling_parameters()
-                                if st.button("Schedule", key="schedule_button", type="primary", use_container_width=True):
-                                    try:
-                                        st.success("Scheduled successfully!")
-                                        st.toast("Updating iosense metadata...")
-                                    except FileNotFoundError:
-                                        st.error("File not found. Please check the file path.")
-                                    except Exception as e:
-                                        st.error(f"An error occurred: {e}")
-                        else:
-                            st.checkbox("Schedular:", key="default_checkbox", value=False, disabled=True)
-
-
                     elif algorithm_select == 'Time-Series':
                         try:
                             if len(selected_algorithms)>1:
@@ -111,22 +110,6 @@ if tab == 'Train Models':
                                         else:
                                            time_length = col2.number_input("Sequence length", min_value=1, max_value=50, value=3, help="The number of time steps in each input sequence. This depends on how far back in time you want your model to consider for making predictions.")       
                                            select_remaining_columns = "yes"
-                                    if  Manager.has_iosense_key(selected_file):
-                                        iosense_checkbox = st.checkbox("Scheduler:")
-                                        if  iosense_checkbox:
-                                            selected_date, selected_time, frequency, periods, rolling_checkbox = Manager.get_scheduling_parameters()
-                                            if st.button("Schedule", key="schedule_button", type="primary", use_container_width=True):
-                                                try:
-                                                    st.success("Scheduled successfully!")
-                                                    st.toast("Updating iosense metadata...")
-                                                except FileNotFoundError:
-                                                    st.error("File not found. Please check the file path.")
-                                                except Exception as e:
-                                                    st.error(f"An error occurred: {e}")
-                                    else:
-                                        st.checkbox("Schedular:", key="default_checkbox", value=False, disabled=True)
-                                # else:
-                                #     st.error("Choose the Time series algorithm")
                                         
                                 else:
                                     select_remaining_columns = "0"
@@ -153,20 +136,7 @@ if tab == 'Train Models':
 
                             remaining_columns = [col for col in df.columns if col != selected_target and not pd.api.types.is_datetime64_any_dtype(df[col])]
                             select_remaining_columns = st.multiselect("Please select X:", remaining_columns, disabled=st.session_state.multi_select)
-                            if  Manager.has_iosense_key(selected_file):
-                                iosense_checkbox = st.checkbox("Scheduler:")
-                                if  iosense_checkbox:
-                                    selected_date, selected_time, frequency, periods, rolling_checkbox = Manager.get_scheduling_parameters()
-                                    if st.button("Schedule", key="schedule_button", type="primary", use_container_width=True):
-                                        try:
-                                            st.success("Scheduled successfully!")
-                                            st.toast("Updating iosense metadata...")
-                                        except FileNotFoundError:
-                                            st.error("File not found. Please check the file path.")
-                                        except Exception as e:
-                                            st.error(f"An error occurred: {e}")
-                            else:
-                                st.checkbox("Schedular:", key="default_checkbox", value=False, disabled=True)
+
                         else:
                             col2.warning("No categorical columns found.")
 
@@ -183,13 +153,24 @@ if tab == 'Train Models':
                             scaling_disable= False
 
                             if algorithm_select == "Time-Series":
-                              scaling_disable= True
-
+                              scaling_disable= True 
                             scaling_method = col_12.selectbox("Please select scaling:", ['Standard Scaler', 'Min Max Scaler', 'Robust Scaler'], disabled=scaling_disable)
-                        # disable_execute_button = Manager.has_iosense_key(selected_file)
-                        # execute_train = st.button('Train your model', type='primary', use_container_width=True, disabled=disable_execute_button)
-                        disable_execute_button = iosense_checkbox if 'iosense_checkbox' in locals() else False
-                        execute_train = st.button('Train your model', type='primary', use_container_width=True, disabled=disable_execute_button)
+
+                        if is_file_scheduled:
+                            st.warning("The selected file is already scheduled. Scheduling and training are disabled.")
+                            enable_scheduler = st.checkbox("Schedule", value=False, disabled=True, help="""To enable this feature, use Data Import --> Iosense Connect""")  
+                            execute_train = st.button('Train your model', type='primary', use_container_width=True, disabled=True)
+                        else:
+                            enable_scheduler = st.checkbox("Schedule",disabled=st.session_state['iosense'], help="""To enable this feature, use Data Import --> Iosense Connect""")  
+                            execute_train = st.button('Train your model', type='primary', use_container_width=True,disabled=enable_scheduler)
+
+                        if enable_scheduler:
+                            train_date, train_time, frequency, n_periods, rolling_checkbox = Manager.get_scheduling_parameters()
+                            if st.button("Schedule", key="schedule_button", type="primary", use_container_width=True):
+                                st.session_state.execute_train = True
+                                st.success("Schedule Successfully")
+                                
+                        # if file_name 
                         if execute_train or 'execute_train'in st.session_state:
                             st.session_state.execute_train = True
                             try:
@@ -202,12 +183,13 @@ if tab == 'Train Models':
                                         "xTarget": select_remaining_columns,
                                         "testSize": test_size,
                                         "scaler": scaling_method,
-                                        "iosense":iosense
-                                
+                                        "iosense": enable_scheduler
                                     }
-                                    response = requests.post('http://127.0.0.1:8000/regression',json=config)
-                                   
-                                    Manager.create_scheduling_metadata(config ,train_date=selected_date, train_time=selected_time, n_periods=periods, frequency=frequency, rolling=rolling_checkbox )   
+                                    if enable_scheduler:
+                                        # generated_dag = generate_dag(config_key, config_value)
+                                        Manager.create_scheduling_metadata(config ,train_date=train_date, train_time=train_time, n_periods=n_periods, frequency=frequency, rolling=rolling_checkbox )   
+                                    else:
+                                        response = requests.post('http://localhost:8000/regression',json=config)
 
                                 elif algorithm_select == 'Time-Series':
                                     config = {
@@ -217,7 +199,7 @@ if tab == 'Train Models':
                                         "yTarget": selected_target,
                                         "testSize": test_size,
                                         "timeCol": selected_time,
-                                        "iosense":  False
+                                        "iosense":  enable_scheduler
                                     }
                                     if "LSTM" in selected_algorithms:
                                         if selected_type == "Custom":       
@@ -230,19 +212,28 @@ if tab == 'Train Models':
                                                 "learningRate": learning_rate,
                                                 "sequenceLength": sequence_length,
                                             })
-                                            response = requests.post('http://127.0.0.1:8000/custom_lstm', json=config)
+                                            if enable_scheduler:
+                                               Manager.create_scheduling_metadata(config ,train_date=train_date, train_time=train_time, n_periods=n_periods, frequency=frequency, rolling=rolling_checkbox )   
+                                            else:  
+                                                response = requests.post('http://localhost:8000/custom_lstm', json=config)
                                         else:
                                             config.update({
                                                 "selectedType": selected_type,
-                                                "sequenceLength": time_length,
+                                                "sequenceLength": time_length
                                             })
-                                            response = requests.post('http://127.0.0.1:8000/basic_lstm', json=config)
+                                            if enable_scheduler:
+                                               Manager.create_scheduling_metadata(config ,train_date=train_date, train_time=train_time, n_periods=n_periods, frequency=frequency, rolling=rolling_checkbox )   
+                                            else:  
+                                                response = requests.post('http://localhost:8000/basic_lstm', json=config)
                                     else:
                                         config.update({
                                             "m": int(m)
                                         })
-                                        Manager.create_scheduling_metadata(config ,train_date=selected_date, train_time=selected_time, n_periods=periods, frequency=frequency, rolling=rolling_checkbox )   
-                                        response = requests.post('http://127.0.0.1:8000/timeseries', json=config)
+                                    
+                                    if enable_scheduler:
+                                       Manager.create_scheduling_metadata(config ,train_date=train_date, train_time=train_time, n_periods=n_periods, frequency=frequency, rolling=rolling_checkbox )   
+                                    else:                                        
+                                        response = requests.post('http://localhost:8000/timeseries', json=config)
                             
                                 elif algorithm_select  == "Classification":
                                     config = {
@@ -253,22 +244,29 @@ if tab == 'Train Models':
                                         "xTarget": select_remaining_columns,
                                         "testSize": test_size,
                                         "scaler": scaling_method,
-                                        "iosense": False
+                                        "iosense": enable_scheduler
                                     }
-                                    Manager.create_scheduling_metadata(config ,train_date=selected_date, train_time=selected_time, n_periods=periods, frequency=frequency, rolling=rolling_checkbox )   
-                                    response = requests.post('http://127.0.0.1:8000/classification',json=config)
+                                    if enable_scheduler:
+                                       Manager.create_scheduling_metadata(config ,train_date=train_date, train_time=train_time, n_periods=n_periods, frequency=frequency, rolling=rolling_checkbox )   
+                                    else:
+                                        response = requests.post('http://localhost:8000/classification',json=config)
                                 else:
                                     response = 404
-
-                                if response.status_code == 200:
-                                    st.toast('Training initiated')
-                                    Manager.delete_in_page_session()
-                                    time.sleep(10)
-                                    st.experimental_rerun()
+                                
+                                if not enable_scheduler:
+                                    if response.status_code == 200:
+                                        st.toast('Training initiated')
+                                        Manager.delete_in_page_session()
+                                        time.sleep(10)
+                                        st.experimental_rerun()
+                                    else:
+                                        col2.error("We were not able to initiate the training process")
+                                        Manager.delete_in_page_session()
                                 else:
-                                    col2.error("We were not able to initiate the training process")
+                                    time.sleep(5)
                                     Manager.delete_in_page_session()
-
+                                    st.experimental_rerun()
+                                    
                             except Exception as e:
                                 col2.error(f"We encountered an Error{e}")
 
@@ -281,29 +279,21 @@ if tab == 'Train Models':
     else:
         st.error("Please Import CSV")
 
-
-
 elif tab == "Deployment":
-    
-    if len(Manager.get_mlflow_experiments_name()) == 0:
-        st.error('To Activate this Feature! Please Train Models')
-
+    if len(iosense_false_experiments) == 0:
+        st.info('To Activate this Feature! Please Train the Models')
     else:
         col1,col2 = st.columns([3,2])
         placeholder = col1.empty()
         col1_1,col1_2 = col1.columns(2)
-
-
-        selected_file = col2.selectbox("Please Select Trained Models",Manager.get_mlflow_experiments_name())
+        selected_file = col2.selectbox("Please Select Trained Models",list(iosense_false_experiments))
         df = mlflow.search_runs(experiment_names=[selected_file])
-        # st.write(df)
         if len(df) > 0:
             display_df = df[['tags.Model','end_time','run_id']]
             display_df = display_df.rename(columns={'tags.Model':'Model Name',"end_time":'Time Created'})
             display_df['Time Created'] = display_df['Time Created'].apply(lambda x: pd.to_datetime(x).replace(microsecond=0).tz_localize(None) + pd.Timedelta(hours=5.5))
             display_df.insert(0, 'Check', False)
             display_df = col2.data_editor(display_df,hide_index=True,use_container_width=True,height=250)
-            # display_df = col2.data_editor(display_df,hide_index=True,use_container_width=True,height=250)
             if (display_df['Check'] == True).any():
                 if (display_df['Check'].sum() > 1):
                     col1.warning('Please select one check box at a time')
@@ -389,29 +379,21 @@ elif tab == "Deployment":
 
 
 elif tab == "Schedular":
-    if len(Manager.get_mlflow_experiments_name()) == 0:
-        st.error('To Activate this Feature! Please Train Models')
-
+    # iosense_true_experiments = Manager.get_iosense_true_experiments()
+    if len(iosense_true_experiments) == 0:
+      st.info('No models are scheduled on iosense Data. Please schedule the modelling.')
     else:
-        col1,col2 = st.columns([3,2])
+        col1, col2 = st.columns([3, 2])
         placeholder = col1.empty()
-        col1_1,col1_2 = col1.columns(2)
-
-
-        selected_file = col2.selectbox("Please Select Trained Models",Manager.get_mlflow_experiments_name())
+        col1_1, col1_2 = col1.columns(2)
+        selected_file = col2.selectbox("Please Select Trained Models", list(iosense_true_experiments))
         df = mlflow.search_runs(experiment_names=[selected_file])
-        # df[df["iosense"] = "True"]
-        st.write(df)
-
         if len(df) > 0:
-            
             display_df = df[['tags.Model','end_time','run_id']]
             display_df = display_df.rename(columns={'tags.Model':'Model Name',"end_time":'Time Created'})
             display_df['Time Created'] = display_df['Time Created'].apply(lambda x: pd.to_datetime(x).replace(microsecond=0).tz_localize(None) + pd.Timedelta(hours=5.5))
             display_df.insert(0, 'Schedule', False)
-
             display_df = col2.data_editor(display_df,hide_index=True,use_container_width=True,height=250)
-
             if (display_df['Schedule'] == True).any():
                 if (display_df['Schedule'].sum() > 1):
                     col1.warning('Please select one check box at a time')
@@ -441,8 +423,12 @@ elif tab == "Schedular":
                                 bento_response = pd.DataFrame(bento_response)      
 
                             if col2_2.button('Delete', use_container_width=True, type='primary'):
-                                bento_df = pd.read_parquet('api_detailed.parquet')                              
-
+                                json_file_path = f"Database/ScheduleMetadata/{selected_file}.json"
+                                if os.path.exists(json_file_path):
+                                    os.remove(json_file_path)
+                                mlflow.delete_experiment(experiment_id=df['experiment_id'].iloc[0])
+                                st.success("files and dags are deleted successfully.")
+                                st.experimental_rerun()
                     except Exception as e:
                         print("Exception occured in Modelling....Please Refresh!!",e)   
 

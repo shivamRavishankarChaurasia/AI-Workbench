@@ -213,7 +213,6 @@ try:
                 resample_button_disabled = selected_col is None
                 if ini_col2.button("Resample", key="resample_sampling", type="primary", use_container_width=True , disabled = resample_button_disabled) or "resample_btn" in st.session_state:
                     st.session_state.resample_btn = True
-
                 # Display resampled data, value counts, and options for updating, saving, and downloading13
                     sampling_df , metadata = Manager.over_under_sampling(df ,  advance_df , selected_col)
                     placeholder1.plotly_chart(Manager.plot_imbalance_piechart(sampling_df, selected_col), use_container_width=True)

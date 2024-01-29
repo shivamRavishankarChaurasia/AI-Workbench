@@ -27,6 +27,8 @@ from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.tsa.stattools import acf, pacf
 from datetime import datetime
 
+mlflow.set_tracking_uri("http://172.17.0.1:5000")
+
 """
 All Database Related Fuctionality
 """
@@ -116,7 +118,7 @@ def create_metadata(file_name: str):
     
 
 # this metadata is for iosense data
-def modify_metdata(file_name :str , Device_ID, Sensors, start_time, end_time, period, cal, db, ist):
+def invoke_iosense(file_name :str , Device_ID, Sensors, start_time, end_time, period, cal, db, ist):
     try:
         st.toast("Updating metadata")
         file_path = c.DEFAULT_METADATA.format(file=file_name)
@@ -167,16 +169,14 @@ def create_scheduling_metadata(config , train_date, train_time, n_periods, frequ
             'fileName': file_name,
             'modelling':config,
             'schedular': {
-            'train_date': str(train_date),
-            'train_time': str(train_time),
-            'n_period': int(n_periods),
-            'frequency': str(frequency),
-            'rolling': str(rolling)
+                'train_date': str(train_date),
+                'train_time': str(train_time),
+                'n_period': int(n_periods),
+                'frequency': str(frequency),
+                'rolling': str(rolling)
+            }
         }
-    
-        }
-        # file_path = f"Database/ScheduleMetadata/{file_name}.json"
-        file_path = c.SCHEDULE_METADATA.format(file=file_name)
+        file_path = c.DEFAULT_SCHEDULE_PATH.format(file=file_name)
         with open(file_path, "w") as json_file:
             json.dump(metadata, json_file, indent=4)
 
@@ -342,7 +342,7 @@ Data Import
 def verify_userid_iosense(user_key:str):
     io_sense = io.DataAccess(userid=user_key,
                         url=c.URL,
-                        key=c.CONTAINER.encode())
+                        key=c.CONTAINER)
     values = io_sense.get_device_details()
 
     if type(values) == type(None):
@@ -350,7 +350,7 @@ def verify_userid_iosense(user_key:str):
     return values
 
 
-@st.cache_data
+# @st.cache_data
 def iosense_multi_select_concatinator(_io_sense,selected_device,select_sensors,start_time,end_time,db,cal,ist):
 
     df = pd.DataFrame()
@@ -1123,19 +1123,43 @@ def check_if_column_type(df: pd.DataFrame, column_name: str) -> str:
     
 
 
-def get_mlflow_experiments_name():
-    experiments = []
+# def get_mlflow_experiments_name():
+#     experiments = []
+#     for experiment in mlflow.search_experiments():
+#         name = experiment.name
+#         if name == "Default":
+#             continue
+#         else:
+#             experiments.append(name)
+#     return experiments
+
+
+def get_mlflow_experiments():
+    experiments_with_iosense_true = []
+    experiments_with_iosense_false = []
+
     for experiment in mlflow.search_experiments():
         name = experiment.name
         if name == "Default":
             continue
+
+        runs = mlflow.search_runs(experiment_ids=[experiment.experiment_id])
+
+        # Check if the 'tags.iosense' column exists and categorize accordingly
+        if "tags.iosense" in runs.columns:
+            if any(runs["tags.iosense"] == "True"):
+                experiments_with_iosense_true.append(name)
+            if any(runs["tags.iosense"] == "False"):
+                experiments_with_iosense_false.append(name)
         else:
-            experiments.append(name)
-    return experiments
+            experiments_with_iosense_false.append(name)
+
+    return experiments_with_iosense_true, experiments_with_iosense_false
+
+
 
 
 def delete_api(experiment_name):
-
     try:
         for x in bentoml.models.list():
             if bentoml.models.get(str(x.tag).split(":")[0]).info.labels["experiment_name"] == experiment_name:

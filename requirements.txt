@@ -24,6 +24,6 @@ tensorflow
 prophet 
 pmdarima
 imbalanced-learn
-apache-airflow==2.6.3
-
+flower
+pendulum
 

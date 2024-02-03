@@ -4,29 +4,28 @@ import json
 import os
 import time
 import mlflow
-
 import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
+from celery import Celery
 import pandas as pd
 import streamlit as st
 import constants as c
 import plotly.graph_objects as go
-
+from api import scheduled_task , revoke_task
 import Utilities.py_tools as Manager
 import Utilities.mappings as m
 from statsmodels.tsa.stattools import adfuller
-
+from celery.result import AsyncResult
 from BentoML.deployer import deploy_model
 
 st.set_page_config(layout="wide",page_title="Modelling",page_icon="https://storage.googleapis.com/ai-workbench/Modeling.svg")
-
 Manager.faclon_logo()
 
 st.subheader('Modelling')
 tab = st.radio('Select tabs', ['Train Models','Deployment' , 'Schedular'], horizontal=True,  index=0, key='radio_key', label_visibility='collapsed')
 st.markdown("<hr style='margin:0px'>", unsafe_allow_html=True)
-schedule_folder = "Database/ScheduleMetadata"
+schedule_folder = "Database/ScheduleData"
 
 file_name = Manager.files_details()
 iosense_true_experiments, iosense_false_experiments = Manager.get_mlflow_experiments()
@@ -46,14 +45,10 @@ if tab == 'Train Models':
             with col2.container():
                 selected_file = st.selectbox("Please select File:",file_name)
                 is_file_scheduled = False
-                # Check if the selected file is already scheduled
-                for filename in os.listdir(schedule_folder):
-                    if filename.endswith(".json"):
-                        with open(os.path.join(schedule_folder, filename), 'r') as file:
-                            metadata = json.load(file)
-                            if metadata.get("fileName", "") == selected_file:
-                                is_file_scheduled = True
-                                break
+                df = Manager.read_schedule_parquet("schedule_data")
+                if df is not None:
+                    if any(df['file_name'] == selected_file):
+                        is_file_scheduled = True
                 if  Manager.has_iosense_key(selected_file):
                     st.session_state['iosense'] = False
                 else:
@@ -163,12 +158,12 @@ if tab == 'Train Models':
                         else:
                             enable_scheduler = st.checkbox("Schedule",disabled=st.session_state['iosense'], help="""To enable this feature, use Data Import --> Iosense Connect""")  
                             execute_train = st.button('Train your model', type='primary', use_container_width=True,disabled=enable_scheduler)
-
                         if enable_scheduler:
-                            train_date, train_time, frequency, n_periods, rolling_checkbox = Manager.get_scheduling_parameters()
+                            schedule_date, schedule_time, frequency, n_periods, rolling_checkbox = Manager.get_scheduling_parameters()
                             if st.button("Schedule", key="schedule_button", type="primary", use_container_width=True):
                                 st.session_state.execute_train = True
                                 st.success("Schedule Successfully")
+                                st.toast("Move to the schedule section")
                                 
                         # if file_name 
                         if execute_train or 'execute_train'in st.session_state:
@@ -186,8 +181,13 @@ if tab == 'Train Models':
                                         "iosense": enable_scheduler
                                     }
                                     if enable_scheduler:
-                                        # generated_dag = generate_dag(config_key, config_value)
-                                        Manager.create_scheduling_metadata(config ,train_date=train_date, train_time=train_time, n_periods=n_periods, frequency=frequency, rolling=rolling_checkbox )   
+                                        schedule_dates = Manager.generate_schedule_dates(schedule_date,schedule_time, n_periods, frequency)
+                                        id_list = []
+                                        for scheduled_date in schedule_dates:
+                                            result = scheduled_task.apply_async(args=[config , selected_file , rolling_checkbox], eta=scheduled_date) 
+                                            task_id = result.id 
+                                            id_list.append(task_id)
+                                        Manager.create_schedule_parquet(id_list , selected_file , schedule_date , frequency ,n_periods , schedule_time )
                                     else:
                                         response = requests.post('http://localhost:8000/regression',json=config)
 
@@ -213,7 +213,14 @@ if tab == 'Train Models':
                                                 "sequenceLength": sequence_length,
                                             })
                                             if enable_scheduler:
-                                               Manager.create_scheduling_metadata(config ,train_date=train_date, train_time=train_time, n_periods=n_periods, frequency=frequency, rolling=rolling_checkbox )   
+                                               schedule_dates = Manager.generate_schedule_dates(schedule_date,schedule_time, n_periods, frequency)
+                                               id_list = []
+                                               for scheduled_date in schedule_dates:
+                                                   result = scheduled_task.apply_async(args=[config , selected_file , rolling_checkbox], eta=scheduled_date) 
+                                                   task_id = result.id 
+                                                   id_list.append(task_id)
+                                               Manager.create_schedule_parquet(id_list , selected_file , schedule_date , frequency ,n_periods , schedule_time )
+                                                
                                             else:  
                                                 response = requests.post('http://localhost:8000/custom_lstm', json=config)
                                         else:
@@ -222,7 +229,13 @@ if tab == 'Train Models':
                                                 "sequenceLength": time_length
                                             })
                                             if enable_scheduler:
-                                               Manager.create_scheduling_metadata(config ,train_date=train_date, train_time=train_time, n_periods=n_periods, frequency=frequency, rolling=rolling_checkbox )   
+                                               schedule_dates = Manager.generate_schedule_dates(schedule_date,schedule_time, n_periods, frequency)
+                                               id_list = []
+                                               for scheduled_date in schedule_dates:
+                                                   result = scheduled_task.apply_async(args=[config , selected_file , rolling_checkbox], eta=scheduled_date) 
+                                                   task_id = result.id 
+                                                   id_list.append(task_id)
+                                               Manager.create_schedule_parquet(id_list , selected_file , schedule_date , frequency ,n_periods , schedule_time )
                                             else:  
                                                 response = requests.post('http://localhost:8000/basic_lstm', json=config)
                                     else:
@@ -230,10 +243,16 @@ if tab == 'Train Models':
                                             "m": int(m)
                                         })
                                     
-                                    if enable_scheduler:
-                                       Manager.create_scheduling_metadata(config ,train_date=train_date, train_time=train_time, n_periods=n_periods, frequency=frequency, rolling=rolling_checkbox )   
-                                    else:                                        
-                                        response = requests.post('http://localhost:8000/timeseries', json=config)
+                                        if enable_scheduler:
+                                               schedule_dates = Manager.generate_schedule_dates(schedule_date,schedule_time, n_periods, frequency)
+                                               id_list = []
+                                               for scheduled_date in schedule_dates:
+                                                   result = scheduled_task.apply_async(args=[config , selected_file , rolling_checkbox], eta=scheduled_date) 
+                                                   task_id = result.id 
+                                                   id_list.append(task_id)
+                                               Manager.create_schedule_parquet(id_list , selected_file , schedule_date , frequency ,n_periods , schedule_time )
+                                        else:                                        
+                                           response = requests.post('http://localhost:8000/timeseries', json=config)
                             
                                 elif algorithm_select  == "Classification":
                                     config = {
@@ -247,7 +266,14 @@ if tab == 'Train Models':
                                         "iosense": enable_scheduler
                                     }
                                     if enable_scheduler:
-                                       Manager.create_scheduling_metadata(config ,train_date=train_date, train_time=train_time, n_periods=n_periods, frequency=frequency, rolling=rolling_checkbox )   
+                                        schedule_dates = Manager.generate_schedule_dates(schedule_date,schedule_time, n_periods, frequency)
+                                        id_list = []
+                                        for scheduled_date in schedule_dates:
+                                            result = scheduled_task.apply_async(args=[config , selected_file , rolling_checkbox], eta=scheduled_date) 
+                                            task_id = result.id 
+                                            id_list.append(task_id)
+                                        Manager.create_schedule_parquet(id_list , selected_file , schedule_date , frequency ,n_periods , schedule_time )
+                                               
                                     else:
                                         response = requests.post('http://localhost:8000/classification',json=config)
                                 else:
@@ -387,6 +413,10 @@ elif tab == "Schedular":
         placeholder = col1.empty()
         col1_1, col1_2 = col1.columns(2)
         selected_file = col2.selectbox("Please Select Trained Models", list(iosense_true_experiments))
+        df = Manager.read_schedule_parquet("schedule_data")
+        st.write(df)
+        result_df = df[["schedule_initialed", "start_date" ,"schedule_time","frequency","end_date"]]
+        schedule_data = col2.data_editor(result_df,hide_index=True,use_container_width=True,height=250) 
         df = mlflow.search_runs(experiment_names=[selected_file])
         if len(df) > 0:
             display_df = df[['tags.Model','end_time','run_id']]
@@ -394,6 +424,7 @@ elif tab == "Schedular":
             display_df['Time Created'] = display_df['Time Created'].apply(lambda x: pd.to_datetime(x).replace(microsecond=0).tz_localize(None) + pd.Timedelta(hours=5.5))
             display_df.insert(0, 'Schedule', False)
             display_df = col2.data_editor(display_df,hide_index=True,use_container_width=True,height=250)
+
             if (display_df['Schedule'] == True).any():
                 if (display_df['Schedule'].sum() > 1):
                     col1.warning('Please select one check box at a time')
@@ -423,11 +454,14 @@ elif tab == "Schedular":
                                 bento_response = pd.DataFrame(bento_response)      
 
                             if col2_2.button('Delete', use_container_width=True, type='primary'):
-                                json_file_path = f"Database/ScheduleMetadata/{selected_file}.json"
-                                if os.path.exists(json_file_path):
-                                    os.remove(json_file_path)
+                                schedule_df = Manager.read_schedule_parquet("schedule_data")
+                                data_folder = f"Database/DagsData/{selected_file}.parquet"
+                                task_id = schedule_df['task_id'].iloc[0] 
+                                revoke_task(task_id)
+                                os.remove(schedule_df)
+                                os.remove(data_folder)
                                 mlflow.delete_experiment(experiment_id=df['experiment_id'].iloc[0])
-                                st.success("files and dags are deleted successfully.")
+                                col2.success("files and  are deleted successfully.")
                                 st.experimental_rerun()
                     except Exception as e:
                         print("Exception occured in Modelling....Please Refresh!!",e)   

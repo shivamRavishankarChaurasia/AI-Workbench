@@ -67,34 +67,6 @@ x-airflow-common:
     CONTAINER_NAME: "WUHaM30tzELCSrfTypGF6A3KNubVIVHSiagTyZyWpUg="
     AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
     _PIP_ADDITIONAL_REQUIREMENTS: |
-      iosense_connect
-      matplotlib  
-      numpy
-      pandas
-      plotly
-      python-dotenv
-      Requests
-      streamlit
-      openpyxl
-      urllib3
-      seaborn
-      statsmodels
-      scikit-learn
-      pyparsing
-      uvicorn
-      celery
-      bentoml
-      mlflow
-      pydantic
-      fastapi
-      Requests
-      xgboost
-      tensorflow 
-      prophet 
-      pmdarima
-      imbalanced-learn
-      pendulum
-      
     #GCP_ARTIFACT_PATH: 'gs://ds-faclon/Mlflow'
     # GCP_ARTIFACT_PATH: ${GCP_ARTIFACT_PATH}
     # GOOGLE_APPLICATION_CREDENTIALS: /opt/airflow/credentials/credentials.json

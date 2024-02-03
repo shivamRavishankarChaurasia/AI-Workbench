@@ -131,6 +131,8 @@ def fetch_data_and_execute(config_key):
             except Exception as e:
                 logging.error(f"Error during modelling for {config_key}: {e}")
 
+
+
 def generate_dag(config_key , config_value):
         dag_id = f'{config_key}'
         start_date_str = config_value['start_date']

@@ -3,7 +3,7 @@ import time
 import json
 import glob
 import math
-
+import requests
 import bentoml
 import mlflow
 import sklearn
@@ -17,7 +17,6 @@ import iosense_connect as io
 import plotly.express as ex
 import plotly.graph_objects as go
 import pyparsing as pp
-
 from statsmodels.tsa.stattools import adfuller
 from sklearn.utils import resample
 from imblearn.over_sampling import SMOTE
@@ -26,6 +25,10 @@ from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.tsa.stattools import acf, pacf
 from datetime import datetime
+
+import pendulum
+from datetime import datetime, timedelta
+
 
 mlflow.set_tracking_uri("http://172.17.0.1:5000")
 
@@ -50,7 +53,41 @@ def create_parquet(df: pd.DataFrame,file_name: str) -> bool:
             create_metadata(file_name=file_name)
     except Exception as e:
         st.error(e)
-    
+
+
+
+
+def create_schedule_parquet(task_id, file_name, schedule_date, frequency, n_periods, schedule_time):
+    try:
+        parquet_path = c.DEFAULT_SCHEDULE_PATH.format(file="schedule_data")
+        frequency_mapping = c.FREQUENCY_MAPPING.get(frequency.lower())
+        if isinstance(frequency_mapping, timedelta):
+            frequency_mapping_hours = frequency_mapping.total_seconds() / 3600
+        else:
+            frequency_mapping_hours = frequency_mapping
+        delta_hours = frequency_mapping_hours * n_periods
+        end_date = schedule_date + timedelta(hours=delta_hours)
+
+        if os.path.exists(parquet_path):
+            existing_schedule_df = pd.read_parquet(parquet_path)
+        else:
+            existing_schedule_df = pd.DataFrame(columns=["file_name", "task_id", "schedule_initialed","start_date","schedule_time","frequency", "end_date"])
+
+        new_schedule_row = pd.DataFrame({
+            "file_name": [file_name],
+            "task_id": [task_id],
+            "schedule_initialed": [datetime.now()],
+            "start_date": [schedule_date],
+            "schedule_time": [schedule_time],
+            "frequency": [frequency],
+            "end_date": [end_date]
+        })
+        updated_schedule_df = pd.concat([existing_schedule_df, new_schedule_row], ignore_index=True)
+        updated_schedule_df.to_parquet(parquet_path, index=False)
+        st.toast("Schedule data is saved Successfully ")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
 
 def update_parquet(df: pd.DataFrame,file_name: str):
     """Updates the existing parquet
@@ -65,6 +102,7 @@ def update_parquet(df: pd.DataFrame,file_name: str):
 
 
 
+
 def read_parquet(file_name=None):
     """Takes in directory and file name to read parquet file
 
@@ -75,9 +113,28 @@ def read_parquet(file_name=None):
     Returns:
         _type_: pd.DataFrame
     """
-
     result_df = pd.read_parquet(c.DEFAULT_STORAGE.format(file=file_name))
     return result_df
+
+
+def read_schedule_parquet(file_name=None):
+    """Takes in directory and file name to read parquet file
+
+    Args:
+        directory (Path, optional): _description_. Defaults to c.default_storage_directory.
+        file_name (str, optional): _description_. Defaults to None.
+
+    Returns:
+        _type_: pd.DataFrame
+    """
+    parquet_path = c.DEFAULT_SCHEDULE_PATH.format(file=file_name)
+    
+    if os.path.exists(parquet_path):
+        result_df = pd.read_parquet(parquet_path)
+        return result_df
+    else:
+        print(f"The file {file_name} does not exist.")
+        return None 
 
 
 def files_details():
@@ -117,6 +174,7 @@ def create_metadata(file_name: str):
         return False
     
 
+
 # this metadata is for iosense data
 def invoke_iosense(file_name :str , Device_ID, Sensors, start_time, end_time, period, cal, db, ist):
     try:
@@ -124,7 +182,6 @@ def invoke_iosense(file_name :str , Device_ID, Sensors, start_time, end_time, pe
         file_path = c.DEFAULT_METADATA.format(file=file_name)
         with open(file_path, 'r') as config_file:
             config = json.load(config_file)
-       
         config['iosense']= {
             'Device_Id': Device_ID,
             'sensors': Sensors if Sensors is not None else None,
@@ -161,30 +218,30 @@ def modify_metadata(file_name:str,new_process:list) -> bool:
         return False
 
 
-def create_scheduling_metadata(config , train_date, train_time, n_periods, frequency, rolling):
-    try:
-        file_name = config["filename"]
-        st.toast(f"Initialized Metadata for {file_name}")
-        metadata = {
-            'fileName': file_name,
-            'modelling':config,
-            'schedular': {
-                'train_date': str(train_date),
-                'train_time': str(train_time),
-                'n_period': int(n_periods),
-                'frequency': str(frequency),
-                'rolling': str(rolling)
-            }
-        }
-        file_path = c.DEFAULT_SCHEDULE_PATH.format(file=file_name)
-        with open(file_path, "w") as json_file:
-            json.dump(metadata, json_file, indent=4)
+# def create_scheduling_metadata(config , train_date, train_time, n_periods, frequency, rolling):
+#     try:
+#         file_name = config["filename"]
+#         st.toast(f"Initialized Metadata for {file_name}")
+#         metadata = {
+#             'fileName': file_name,
+#             'modelling':config,
+#             'schedular': {
+#                 'train_date': str(train_date),
+#                 'train_time': str(train_time),
+#                 'n_period': int(n_periods),
+#                 'frequency': str(frequency),
+#                 'rolling': str(rolling)
+#             }
+#         }
+#         file_path = c.DEFAULT_SCHEDULE_PATH.format(file=file_name)
+#         with open(file_path, "w") as json_file:
+#             json.dump(metadata, json_file, indent=4)
 
-        st.success("Metadata created Successfully")
-        return True
-    except Exception as e:
-        st.error(f"Couldn't create Metadata. Error: {e}")
-        return False
+#         st.success("Metadata created Successfully")
+#         return True
+#     except Exception as e:
+#         st.error(f"Couldn't create Metadata. Error: {e}")
+#         return False
     
 
 # this metadata is for iosense data
@@ -230,6 +287,8 @@ def get_scheduling_parameters():
     periods = st.number_input("Number of times to retrain", min_value=1, max_value=8, value=1)
     rolling_checkbox = st.checkbox("Start_time:")
     return selected_date, selected_time, frequency, periods, rolling_checkbox
+
+
 
 """
 Streamlit Sessions
@@ -1099,6 +1158,7 @@ def create_models_dataframe(algo:str):
 
     return df
 
+
 @st.cache_data
 def check_if_column_type(df: pd.DataFrame, column_name: str) -> str:
     
@@ -1196,11 +1256,106 @@ def plot_confusion_matrix(confusion_matrix, class_labels, figsize=(8, 6)):
     plt.show()
 
 
-
-
-
-# to fecth the exp_id from the mlflow 
+@st.cache_data
 def get_experiment_id(run_id):
+    """
+    Retrieve the experiment ID associated with a specific MLflow run.
+
+    Parameters:
+    - run_id (str): Unique identifier for the MLflow run.
+
+    Returns:
+    - str: Experiment ID corresponding to the provided run ID.
+    """
     client = mlflow.tracking.MlflowClient()
     run_info = client.get_run(run_id)
     return run_info.info.experiment_id
+
+
+@st.cache_data
+def generate_schedule_dates(start_date, start_time, n_periods, frequency):
+    """
+    Generate a list of schedule dates based on the specified parameters.
+
+    Parameters:
+    - start_date (str): The starting date in the format 'YYYY-MM-DD'.
+    - start_time (str): The starting time in the format 'HH:MM:SS'.
+    - n_periods (int): Number of periods (dates) to generate.
+    - frequency (str): Frequency of the schedule ('daily', 'weekly', etc.).
+
+    Returns:
+    - list: List of schedule dates as Pendulum datetime objects.
+    """
+    start_datetime = pendulum.parse(f"{start_date} {start_time}")
+    interval = c.FREQUENCY_MAPPING.get(frequency.lower(), timedelta(days=1))
+    schedule_dates = [start_datetime + i * interval for i in range(n_periods)]
+    return schedule_dates
+
+
+
+base_url = 'http://localhost:8000/'
+iosense_data = io.DataAccess(c.API_KEY, c.URL, c.CONTAINER)
+data_fetch_configs = {}
+metadata_folder = c.DEFAULT_IOSENSE_METADATA
+
+for filename in os.listdir(metadata_folder):
+    if filename.endswith(".json"):
+        with open(os.path.join(metadata_folder, filename), 'r') as file:
+            metadata = json.load(file)
+            if "iosense" in metadata:
+                iosense_info = metadata.get("iosense", {})
+                config_key = metadata.get("fileName", filename.replace(".json", ""))
+                data_fetch_configs[config_key] = {
+                    "file_name": config_key,
+                    "device_id": iosense_info.get("Device_Id", ""),
+                    "sensors_list": iosense_info.get("sensors", []),
+                    "start_time": iosense_info.get("start_time", ""),
+                    "end_time": iosense_info.get("end_time", ""),
+                    "period": int(iosense_info.get("period", 0)),
+                    "cal": iosense_info.get("cal", ""),
+                    "ist": iosense_info.get("IST", ""),
+                    "gcs": iosense_info.get("db", ""),
+                    "task": metadata.get("proccess", [])
+                }
+
+
+@st.cache_data        
+def fetch_data_and_process(data_config_value , rolling):
+    start_time = pendulum.parse(data_config_value["start_time"])
+    if rolling:
+        start_time -= timedelta(days=int(data_config_value["period"]))
+    df = iosense_data.data_query(
+        device_id=data_config_value["device_id"],
+        sensors=data_config_value["sensors_list"],
+        start_time=start_time,
+        end_time=datetime.now(),
+        cal=data_config_value["cal"],
+        IST=data_config_value["ist"],
+        db=data_config_value["gcs"]
+    )
+    for task_code in data_config_value["task"]:
+        exec(task_code)
+
+    return df
+
+
+@st.cache_data  
+def data_modelling(config):
+    algorithm = config.get("algorithm", "")
+    if algorithm == 'Regression':
+        route = 'regression'
+    elif algorithm == 'Time-Series':
+        models = config.get("models", [])
+        if "LSTM" in models:
+            selectedType = config.get("selectedType", "")
+            route = 'custom_lstm' if selectedType == "Custom" else 'basic_lstm'
+        else:
+            route = 'timeseries'
+    elif algorithm == 'Classification':
+        route = 'classification'
+    if route:
+        response = requests.post(f"{base_url}{route}", json=config)
+        return response.status_code, response.json() if response.ok else response.text
+    else:
+        return 404, None
+    

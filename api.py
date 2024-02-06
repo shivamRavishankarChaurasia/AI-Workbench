@@ -7,10 +7,12 @@ import os
 import Utilities.py_tools as Manager
 import logging
 import constants as c 
+import numpy as np
 parquet_dir = "Database/DagsData"
+
 app = FastAPI()
 
-celery = Celery('tasks', broker='amqp://guest:guest@localhost:5672//')
+celery = Celery('tasks', broker='amqp://guest:guest@localhost:5672//') 
 
 
 class ReportFormat(BaseModel):
@@ -122,14 +124,6 @@ def scheduled_task(config , config_key , rolling ):
     except Exception as e:
         logging.error(f"Error during processing for {config_key}: {e}")
 
-
-
-def revoke_task(task_id):
-    try:
-        celery.control.revoke(task_id, terminate=True)
-        print(f"Task {task_id} revoked successfully.")
-    except Exception as e:
-        print(f"Error revoking task {task_id}: {e}")
 
 
 @app.post('/regression', response_model=ResponseFormat)

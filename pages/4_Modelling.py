@@ -12,7 +12,7 @@ import pandas as pd
 import streamlit as st
 import constants as c
 import plotly.graph_objects as go
-from api import scheduled_task , revoke_task
+from api import scheduled_task 
 import Utilities.py_tools as Manager
 import Utilities.mappings as m
 from statsmodels.tsa.stattools import adfuller
@@ -405,64 +405,68 @@ elif tab == "Deployment":
 
 
 elif tab == "Schedular":
-    # iosense_true_experiments = Manager.get_iosense_true_experiments()
-    if len(iosense_true_experiments) == 0:
+    schedule_device = Manager.read_schedule_parquet("schedule_data")
+    if schedule_device.empty:
       st.info('No models are scheduled on iosense Data. Please schedule the modelling.')
     else:
         col1, col2 = st.columns([3, 2])
         placeholder = col1.empty()
         col1_1, col1_2 = col1.columns(2)
-        selected_file = col2.selectbox("Please Select Trained Models", list(iosense_true_experiments))
-        df = Manager.read_schedule_parquet("schedule_data")
-        st.write(df)
-        result_df = df[["schedule_initialed", "start_date" ,"schedule_time","frequency","end_date"]]
-        schedule_data = col2.data_editor(result_df,hide_index=True,use_container_width=True,height=250) 
-        df = mlflow.search_runs(experiment_names=[selected_file])
+        selected_file = col2.selectbox("Please Select Trained Models", list(schedule_device["file_name"]))
+        if selected_file:
+            result_df = schedule_device[schedule_device['file_name'] == selected_file]
+            result_df = result_df[["schedule_initialed", "start_date" ,"schedule_time","frequency","end_date"]].T
+            schedule_data = col2.data_editor(result_df,hide_index=True,use_container_width=True,height=210)
+        if col2.button('Delete Scheule', use_container_width=True, type='primary'):
+            schedule_df = Manager.read_schedule_parquet("schedule_data")
+            data_folder = f"Database/DagsData/{selected_file}.parquet"
+            row_to_drop = schedule_df[schedule_df['file_name'] == selected_file]
+            if not row_to_drop.empty:
+                task_ids = row_to_drop['task_id'].values[0]
+                Manager.delete_tasks(task_ids)
+                schedule_df.drop(row_to_drop.index, inplace=True)
+                Manager.update_schedule_parquet(df = schedule_df , file_name = "schedule_data")  
+                os.remove(data_folder)
+                mlflow.delete_experiment(experiment_id=df['experiment_id'].iloc[0])
+                col2.success("files and  are deleted successfully.")
+                st.experimental_rerun()
+        df = mlflow.search_runs(experiment_names=list(iosense_true_experiments))
         if len(df) > 0:
             display_df = df[['tags.Model','end_time','run_id']]
             display_df = display_df.rename(columns={'tags.Model':'Model Name',"end_time":'Time Created'})
             display_df['Time Created'] = display_df['Time Created'].apply(lambda x: pd.to_datetime(x).replace(microsecond=0).tz_localize(None) + pd.Timedelta(hours=5.5))
             display_df.insert(0, 'Schedule', False)
             display_df = col2.data_editor(display_df,hide_index=True,use_container_width=True,height=250)
-
             if (display_df['Schedule'] == True).any():
                 if (display_df['Schedule'].sum() > 1):
                     col1.warning('Please select one check box at a time')
                 else:
                     run_id = display_df[display_df['Schedule'] == True]['run_id'].iloc[0]
                     model_name = display_df[display_df['Schedule'] == True]['Model Name'].iloc[0]
-
                     try:
                         if df[df["run_id"] == run_id]["status"].iloc[0] == "FINISHED":
-
                             exp_id = df[df['run_id'] == run_id]['experiment_id'].iloc[0]
-
                             with open(f"mlruns/{exp_id}/{run_id}/figure.pkl", 'rb') as pickle_file:
                                 fig = pickle.load(pickle_file)
 
                             with open(f"mlruns/{exp_id}/{run_id}/report.pkl", 'rb') as pickle_file:
                                 metrices_df = pickle.load(pickle_file)
-                            
                             placeholder.plotly_chart(fig,use_container_width=True)
-                            
-                            col2.dataframe(metrices_df,use_container_width=True,hide_index=True)
+
+                            col2.dataframe(metrices_df,use_container_width=True ,hide_index=True)
 
                             col2_1,col2_2 = col2.columns(2)
 
                             if col2_1.button('Deploy',use_container_width=True,type='primary'):
                                 bento_response = deploy_model(experiment_name=selected_file,run_id=run_id)
                                 bento_response = pd.DataFrame(bento_response)      
-
-                            if col2_2.button('Delete', use_container_width=True, type='primary'):
-                                schedule_df = Manager.read_schedule_parquet("schedule_data")
-                                data_folder = f"Database/DagsData/{selected_file}.parquet"
-                                task_id = schedule_df['task_id'].iloc[0] 
-                                revoke_task(task_id)
-                                os.remove(schedule_df)
-                                os.remove(data_folder)
-                                mlflow.delete_experiment(experiment_id=df['experiment_id'].iloc[0])
-                                col2.success("files and  are deleted successfully.")
+                            
+                            if col2_2.button('Delete Models', use_container_width=True, type='primary'):
+                                mlflow.delete_run(run_id=f"{run_id}")
+                                st.success(f"Model with run_id {run_id} deleted successfully.")
                                 st.experimental_rerun()
+                                    
+                            
                     except Exception as e:
                         print("Exception occured in Modelling....Please Refresh!!",e)   
 

@@ -11,6 +11,8 @@ import numpy as np
 import constants as c
 import pandas as pd
 import streamlit as st
+import pyarrow as pa
+import pyarrow.parquet as pq
 import seaborn as sns
 import matplotlib.pyplot as plt
 import iosense_connect as io
@@ -25,6 +27,7 @@ from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.tsa.stattools import acf, pacf
 from datetime import datetime
+from celery.result import AsyncResult
 
 import pendulum
 from datetime import datetime, timedelta
@@ -89,6 +92,7 @@ def create_schedule_parquet(task_id, file_name, schedule_date, frequency, n_peri
         print(f"An error occurred: {e}")
 
 
+
 def update_parquet(df: pd.DataFrame,file_name: str):
     """Updates the existing parquet
 
@@ -98,9 +102,18 @@ def update_parquet(df: pd.DataFrame,file_name: str):
         file_name (_type_, optional): _description_. Contains the file name.
     """
     st.toast(f"Updating Database Table :{file_name}")
-    df.to_parquet(c.DEFAULT_STORAGE.format(file=file_name), index=False)
+    df.to_parquet(c.DEFAULT_STORAGE.format(file=file_name), index=True)
 
+def update_schedule_parquet(df: pd.DataFrame,file_name: str):
+    """Updates the existing parquet
 
+    Args:
+        df (DataFrame): pd.dataframe
+        directory (_type_, optional): _description_. Defaults to c.default_storage_directory.
+        file_name (_type_, optional): _description_. Contains the file name.
+    """
+    st.toast(f"Updating Database Table :{file_name}")
+    df.to_parquet(c.DEFAULT_SCHEDULE_PATH.format(file=file_name), index=True)
 
 
 def read_parquet(file_name=None):
@@ -278,6 +291,7 @@ def has_iosense_key(file_name: str) -> bool:
     except (FileNotFoundError, json.JSONDecodeError):
         # Return False in case of file not found or JSON decode error
         return False
+
 
 # scheduling part part 
 def get_scheduling_parameters():
@@ -646,6 +660,7 @@ def get_imbalance_cols(df):
     for col in cat_columns:
         unique_count = len(df[col].unique())
         if unique_count <= c.CARDINALITY_THRESHOLD:
+    
             imb_col_lst.append(col)
 
     return imb_col_lst
@@ -1358,4 +1373,21 @@ def data_modelling(config):
         return response.status_code, response.json() if response.ok else response.text
     else:
         return 404, None
-    
+
+
+
+
+@st.cache_data
+def delete_tasks(task_ids):
+    print("Hello WOrld")
+    try:
+        for task_id in task_ids:
+            async_result = AsyncResult(task_id)
+            if  async_result:
+                async_result.revoke(terminate=True)
+                st.toast(f"Task {task_id} revoked successfully.")
+            else:
+                print(f"Task {task_id} has already been executed, cannot revoke.")
+    except Exception as e:
+        print(f"Error deleting tasks: {e}")
+

@@ -90,7 +90,7 @@ def main():
                             period = period.days
                 
                             sub_col1,sub_col2,sub_col3 = st.columns(3)
-                            cal = sub_col1.checkbox("cal")
+                            cal = sub_col1.checkbox("cal", value = True)
                             db = sub_col2.checkbox("gcs", value=True)
                             ist = sub_col3.checkbox("IST",value=True)
 

@@ -188,6 +188,7 @@ if tab == 'Train Models':
                                             task_id = result.id 
                                             id_list.append(task_id)
                                         Manager.create_schedule_parquet(id_list , selected_file , schedule_date , frequency ,n_periods , schedule_time )
+                                        st.experimental_rerun()
                                     else:
                                         response = requests.post('http://localhost:8000/regression',json=config)
 
@@ -220,6 +221,7 @@ if tab == 'Train Models':
                                                    task_id = result.id 
                                                    id_list.append(task_id)
                                                Manager.create_schedule_parquet(id_list , selected_file , schedule_date , frequency ,n_periods , schedule_time )
+                                               st.experimental_rerun()
                                                 
                                             else:  
                                                 response = requests.post('http://localhost:8000/custom_lstm', json=config)
@@ -236,6 +238,7 @@ if tab == 'Train Models':
                                                    task_id = result.id 
                                                    id_list.append(task_id)
                                                Manager.create_schedule_parquet(id_list , selected_file , schedule_date , frequency ,n_periods , schedule_time )
+                                               st.experimental_rerun()
                                             else:  
                                                 response = requests.post('http://localhost:8000/basic_lstm', json=config)
                                     else:
@@ -251,6 +254,7 @@ if tab == 'Train Models':
                                                    task_id = result.id 
                                                    id_list.append(task_id)
                                                Manager.create_schedule_parquet(id_list , selected_file , schedule_date , frequency ,n_periods , schedule_time )
+                                               st.experimental_rerun()
                                         else:                                        
                                            response = requests.post('http://localhost:8000/timeseries', json=config)
                             
@@ -415,8 +419,8 @@ elif tab == "Schedular":
         selected_file = col2.selectbox("Please Select Trained Models", list(schedule_device["file_name"]))
         if selected_file:
             result_df = schedule_device[schedule_device['file_name'] == selected_file]
-            result_df = result_df[["schedule_initialed", "start_date" ,"schedule_time","frequency","end_date"]].T
-            schedule_data = col2.data_editor(result_df,hide_index=True,use_container_width=True,height=210)
+            result_df = result_df[["schedule_initialed", "start_date" ,"schedule_time","frequency","end_date"]]
+            schedule_data = col2.data_editor(result_df.T, hide_index=True, use_container_width=True, height=210)
         if col2.button('Delete Scheule', use_container_width=True, type='primary'):
             schedule_df = Manager.read_schedule_parquet("schedule_data")
             data_folder = f"Database/DagsData/{selected_file}.parquet"

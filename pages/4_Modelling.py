@@ -182,13 +182,18 @@ if tab == 'Train Models':
                                     }
                                     if enable_scheduler:
                                         schedule_dates = Manager.generate_schedule_dates(schedule_date,schedule_time, n_periods, frequency)
+                                        print(schedule_dates)
                                         id_list = []
                                         for scheduled_date in schedule_dates:
                                             result = scheduled_task.apply_async(args=[config , selected_file , rolling_checkbox], eta=scheduled_date) 
+                                            print(config)
+                                            print(result)
+                                            print(selected_file)
                                             task_id = result.id 
                                             id_list.append(task_id)
                                         Manager.create_schedule_parquet(id_list , selected_file , schedule_date , frequency ,n_periods , schedule_time )
-                                        st.experimental_rerun()
+                                        time.sleep(3)
+                                        Manager.delete_in_page_session()
                                     else:
                                         response = requests.post('http://localhost:8000/regression',json=config)
 
@@ -221,7 +226,7 @@ if tab == 'Train Models':
                                                    task_id = result.id 
                                                    id_list.append(task_id)
                                                Manager.create_schedule_parquet(id_list , selected_file , schedule_date , frequency ,n_periods , schedule_time )
-                                               st.experimental_rerun()
+                                               Manager.delete_in_page_session()
                                                 
                                             else:  
                                                 response = requests.post('http://localhost:8000/custom_lstm', json=config)
@@ -238,7 +243,7 @@ if tab == 'Train Models':
                                                    task_id = result.id 
                                                    id_list.append(task_id)
                                                Manager.create_schedule_parquet(id_list , selected_file , schedule_date , frequency ,n_periods , schedule_time )
-                                               st.experimental_rerun()
+                                               Manager.delete_in_page_session()
                                             else:  
                                                 response = requests.post('http://localhost:8000/basic_lstm', json=config)
                                     else:
@@ -254,7 +259,7 @@ if tab == 'Train Models':
                                                    task_id = result.id 
                                                    id_list.append(task_id)
                                                Manager.create_schedule_parquet(id_list , selected_file , schedule_date , frequency ,n_periods , schedule_time )
-                                               st.experimental_rerun()
+                                               Manager.delete_in_page_session()
                                         else:                                        
                                            response = requests.post('http://localhost:8000/timeseries', json=config)
                             
@@ -277,6 +282,7 @@ if tab == 'Train Models':
                                             task_id = result.id 
                                             id_list.append(task_id)
                                         Manager.create_schedule_parquet(id_list , selected_file , schedule_date , frequency ,n_periods , schedule_time )
+                                        Manager.delete_in_page_session()
                                                
                                     else:
                                         response = requests.post('http://localhost:8000/classification',json=config)
@@ -411,30 +417,32 @@ elif tab == "Deployment":
 elif tab == "Schedular":
     schedule_device = Manager.read_schedule_parquet("schedule_data")
     if schedule_device.empty:
-      st.info('No models are scheduled on iosense Data. Please schedule the modelling.')
+     st.info('No models are scheduled on iosense Data. Please schedule the device.')
     else:
         col1, col2 = st.columns([3, 2])
         placeholder = col1.empty()
         col1_1, col1_2 = col1.columns(2)
         selected_file = col2.selectbox("Please Select Trained Models", list(schedule_device["file_name"]))
+        df = mlflow.search_runs(experiment_names=[selected_file])
+        # st.write(df)
+        # column_names = ["Initialed_Time", "Start Date", "Schedule Time", "Frequency", "End Date"]
         if selected_file:
             result_df = schedule_device[schedule_device['file_name'] == selected_file]
-            result_df = result_df[["schedule_initialed", "start_date" ,"schedule_time","frequency","end_date"]]
-            schedule_data = col2.data_editor(result_df.T, hide_index=True, use_container_width=True, height=210)
-        if col2.button('Delete Scheule', use_container_width=True, type='primary'):
-            schedule_df = Manager.read_schedule_parquet("schedule_data")
+            schedule_df = result_df[["schedule_initialed", "start_date" ,"schedule_time","frequency","end_date"]].T
+            schedule_data = col2.data_editor(schedule_df, hide_index=False, use_container_width=True, height=210)
+        if col2.button('Delete Schedular', use_container_width=True, type='primary'):
             data_folder = f"Database/DagsData/{selected_file}.parquet"
-            row_to_drop = schedule_df[schedule_df['file_name'] == selected_file]
-            if not row_to_drop.empty:
-                task_ids = row_to_drop['task_id'].values[0]
+            if not result_df.empty:
+                task_ids = result_df['task_id'].values[0]
                 Manager.delete_tasks(task_ids)
-                schedule_df.drop(row_to_drop.index, inplace=True)
-                Manager.update_schedule_parquet(df = schedule_df , file_name = "schedule_data")  
+                result_df.drop(result_df.index, inplace=True)
+                Manager.update_schedule_parquet(df = result_df , file_name = "schedule_data")  
                 os.remove(data_folder)
-                mlflow.delete_experiment(experiment_id=df['experiment_id'].iloc[0])
-                col2.success("files and  are deleted successfully.")
+                experiments = mlflow.delete_experiment(experiment_id=df['experiment_id'].iloc[0])
+
+                col2.success("schedular are deleted successfully.")
                 st.experimental_rerun()
-        df = mlflow.search_runs(experiment_names=list(iosense_true_experiments))
+
         if len(df) > 0:
             display_df = df[['tags.Model','end_time','run_id']]
             display_df = display_df.rename(columns={'tags.Model':'Model Name',"end_time":'Time Created'})

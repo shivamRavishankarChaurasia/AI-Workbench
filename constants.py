@@ -6,18 +6,17 @@ from datetime import datetime  as dt , timedelta
 
 load_dotenv(".env")
 API_KEY = os.getenv("API")
-
+print(API_KEY)
 
 """
-DEFAULT BASE FOR ENTIRE WORKBENCH
+DEFAULT BASE FOR ENTIRE WORKBENCHs
 """
 DEFAULT_STORAGE = "Database/{file}.parquet"
 DEFAULT_METADATA = "Database/Metadata/{file}.json"
 DEFAULT_SCHEDULE_PATH = "Database/ScheduleData/{file}.parquet"
-SCHEDULE_DATA = "Database/DagsData"
+DEFAULT_SCHEDULE_DATA = "Database/DagsData"
 DEFAULT_IOSENSE_METADATA = "Database/Metadata"
-
-
+DEFAULT_DASHBOARD_PATH= "Database/Pickle_Data/{file}.pkl"
 
 URL = os.getenv('URL')
 CONTAINER= b"WUHaM30tzELCSrfTypGF6A3KNubVIVHSiagTyZyWpUg="

@@ -8,7 +8,8 @@ import Utilities.py_tools as Manager
 import logging
 import constants as c 
 import numpy as np
-parquet_dir = "Database/DagsData"
+import pickle 
+parquet_dir = c.DEFAULT_SCHEDULE_DATA
 
 app = FastAPI()
 
@@ -124,6 +125,23 @@ def scheduled_task(config , config_key , rolling ):
     except Exception as e:
         logging.error(f"Error during processing for {config_key}: {e}")
 
+
+# Dashboarding task 
+@celery.task
+def generate_dashboard(file_name , image):
+    try:
+        dashboard_path = c.DEFAULT_DASHBOARD_PATH.format(file=file_name)
+        dashboard_dir = os.path.dirname(dashboard_path)
+
+        if not os.path.exists(dashboard_dir):
+            os.makedirs(dashboard_dir)
+
+        with open(dashboard_path, 'wb') as f:
+            pickle.dump(image, f)
+        
+        print(f"Image saved successfully in {dashboard_path}")
+    except Exception as e:
+        print(f'Error saving the image: {e}')
 
 
 @app.post('/regression', response_model=ResponseFormat)

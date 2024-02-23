@@ -172,16 +172,23 @@ def main():
 
                 if len(df)>0 and df is not None:
                     sub_tabs1,sub_tabs2 = col2.tabs(['Save','Download'])
-
                     with sub_tabs1:
                         iosense_save = st.text_input("Please Provide a Name",help="Please press enter to save \n Dont add .csv or any other extension")
                         if len(iosense_save) > 0 or 'iosense_save' in st.session_state:
-                            st.session_state.iosense_save = True
                             Manager.create_parquet(df=df,file_name=iosense_save)
                             Manager.invoke_iosense(iosense_save , selected_option, select_sensors , start_time , end_time , period , cal , db , ist)
                             Manager.delete_in_page_session()
+                            st.session_state['iosense_save'] = True
+                            if 'iosense_save' in st.session_state and st.session_state['iosense_save']:
+                                selected_dashboard = st.selectbox("Select a Dashboard", ["Dashboard_1", "Dashboard_2"])
+                                save_to_dashboard_button = st.button("Save to Dashboard" , type = "Primary")
+                                if save_to_dashboard_button:
+                                    # Manager.save_to_dashboard(dashboard_name=selected_dashboard)
+                                    st.success(f"Successfully saved to {selected_dashboard}")
+                                    Manager.delete_in_page_session()
                         else:
                             st.info('Please fill in inputs')
+                       
                     with sub_tabs2:
                         csv = df.to_csv().encode('utf-8')
                         st.download_button(

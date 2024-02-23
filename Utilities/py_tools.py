@@ -38,7 +38,6 @@ mlflow.set_tracking_uri("http://172.17.0.1:5000")
 """
 All Database Related Fuctionality
 """
-
 def create_parquet(df: pd.DataFrame,file_name: str) -> bool:
     """Converts the csv into parquet
 
@@ -75,6 +74,7 @@ def create_schedule_parquet(task_id, file_name, schedule_date, frequency, n_peri
             existing_schedule_df = pd.read_parquet(parquet_path)
         else:
             existing_schedule_df = pd.DataFrame(columns=["file_name", "task_id", "schedule_initialed","start_date","schedule_time","frequency", "end_date"])
+            existing_schedule_df.to_parquet(parquet_path, index=False)
 
         new_schedule_row = pd.DataFrame({
             "file_name": [file_name],
@@ -302,6 +302,10 @@ def get_scheduling_parameters():
     rolling_checkbox = st.checkbox("Start_time:")
     return selected_date, selected_time, frequency, periods, rolling_checkbox
 
+
+
+# Dashboarding 
+# def save_dashboard_metadata(dash_board):
 
 
 """
@@ -1313,6 +1317,7 @@ iosense_data = io.DataAccess(c.API_KEY, c.URL, c.CONTAINER)
 data_fetch_configs = {}
 metadata_folder = c.DEFAULT_IOSENSE_METADATA
 
+
 for filename in os.listdir(metadata_folder):
     if filename.endswith(".json"):
         with open(os.path.join(metadata_folder, filename), 'r') as file:
@@ -1334,6 +1339,7 @@ for filename in os.listdir(metadata_folder):
                 }
 
 
+
 @st.cache_data        
 def fetch_data_and_process(data_config_value , rolling):
     start_time = pendulum.parse(data_config_value["start_time"])
@@ -1350,7 +1356,6 @@ def fetch_data_and_process(data_config_value , rolling):
     )
     for task_code in data_config_value["task"]:
         exec(task_code)
-
     return df
 
 

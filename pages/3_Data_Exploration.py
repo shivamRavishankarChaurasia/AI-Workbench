@@ -6,7 +6,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import Utilities.py_tools as Manager
-
+from api import generate_dashboard
 from sklearn.manifold import TSNE
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
@@ -27,7 +27,6 @@ if len(file_name) > 0:
 
     if tab == 'One-Click Plot':
         # One-Click plot contains Correlation heatmap & Pairplot
-
         col1,col2 = st.columns([3.5,1.5])
         container = col1.empty() # container that will hold all plots
 
@@ -117,8 +116,10 @@ if len(file_name) > 0:
                         container.pyplot(fig, use_container_width=True)
                     except Exception as e:
                         container.error(f"Reason: {e}")
+        if col2.button("Save the plot", type = "primary" , use_container_width=True):
+            generate_dashboard(tab1_file_name,fig)
+            col2.success("Plots Saved Sucessfully")
 
- 
     if tab == 'Manual Plot':
         col1,col2 = st.columns([3.5,1.5])
         tab2_file_name = col2.selectbox("Please Select file:",file_name,key="tab2_file_name", index=file_name.index(st.session_state.default_name))
@@ -242,7 +243,9 @@ if len(file_name) > 0:
 
                     except Exception as e:
                         container.error(f"Reason: {e}")
-
+        if col2.button("Save the plot", type = "primary" , use_container_width=True):
+            generate_dashboard(tab1_file_name ,fig)
+            col2.success("Plots Saved Sucessfully")
         else:
             container.error('Not enough columns to draw plot')    
 
@@ -308,10 +311,13 @@ if len(file_name) > 0:
                     container.pyplot(fig_pacf, use_container_width=True)
             else:
                 col1.error('Not enough columns to draw plot')
+        if col2.button("Save the plot", type = "primary" , use_container_width=True):
+            generate_dashboard(tab1_file_name ,fig)
+            col2.success("Plots Saved Sucessfully")
         else:
             col1.error('No Datetime column present in dataframe')
     
- 
+
     if tab == 'Plots':
         # This tab contains t-SNE & PCA plot
         col1,col2 = st.columns([3.5,1.5])
@@ -389,7 +395,9 @@ if len(file_name) > 0:
 
                     fig_tsne = Manager.tsne_plot(tsne_df, size, color)
                     container.plotly_chart(fig_tsne, use_container_width=True)
-        
+        if col2.button("Save the plot", type = "primary" , use_container_width=True):
+            generate_dashboard(tab1_file_name ,fig)
+            col2.success("Plots Saved Sucessfully")
         else:
             col1.error('Not enough columns to draw plots')
   
@@ -471,5 +479,8 @@ if len(file_name) > 0:
             
                 except Exception as e:
                     container.error(f"Reason: {e}")
+        if col2.button("Save the plot", type = "primary" , use_container_width=True):
+            generate_dashboard(tab1_file_name ,fig)
+            col2.success("Plots Saved Sucessfully")
 else:
     st.error("Please import CSVs to perform operations")

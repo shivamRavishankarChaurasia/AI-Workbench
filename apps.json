@@ -1,38 +1,37 @@
 {
-  "apps": [
-    {
+  "apps": [{
       "name": "Workbench Streamlit Service",
-      "script": "./.venv/bin/streamlit",
-      "args": "run ./Data_Import.py",
-      "interpreter": "./.venv/bin/python",
+      "script": ".\\.venv\\Scripts\\streamlit.exe",
+      "args": "run .\\Data_Import.py",
+      "interpreter": ".\\.venv\\Scripts\\python.exe",
       "time": true
     },
     {
       "name": "Uvicorn Service",
-      "script": "./.venv/bin/uvicorn",
+      "script": ".\\.venv\\Scripts\\uvicorn.exe",
       "args": "api:app --host 0.0.0.0 --port 8000 --reload",
-      "interpreter": "./.venv/bin/python",
+      "interpreter": ".\\.venv\\Scripts\\python.exe",
       "time": true
     },
     {
       "name": "Celery Service",
-      "script": "./.venv/bin/celery",
+      "script": ".\\.venv\\Scripts\\celery.exe",
       "args": "-A api.celery worker --loglevel=info",
-      "interpreter": "./.venv/bin/python",
+      "interpreter": ".\\.venv\\Scripts\\python.exe",
       "time": true
     },
     {
       "name": "Bentoml Service",
-      "script": "./.venv/bin/bentoml",
+      "script": ".\\.venv\\Scripts\\bentoml.exe",
       "args": "serve --reload",
-      "interpreter": "./.venv/bin/python",
+      "interpreter": ".\\.venv\\Scripts\\python.exe",
       "time": true
     },
     {
       "name": "MLflow",
-      "script": "./.venv/bin/mlflow",
+      "script": ".\\.venv\\Scripts\\mlflow.exe",
       "args": "server -h 0.0.0.0",
-      "interpreter": "./.venv/bin/python",
+      "interpreter": ".\\.venv\\Scripts\\python.exe",
       "time": true
     }
   ]

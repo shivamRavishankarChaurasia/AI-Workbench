@@ -91,7 +91,7 @@ def timeseries(input_series: TimeSeries) -> pd.DataFrame:
             with open(f"mlruns/{exp_path}/{input_series.run_id}/sequence_len.pkl", 'rb') as pickle_file:
                 sequence_length = pickle.load(pickle_file)
             with open(f"mlruns/{exp_path}/{input_series.run_id}/target_name.pkl", 'rb') as pickle_file:
-                target_name = pickle.load(pickle_file)
+                    target_name = pickle.load(pickle_file)
             with open(f"mlruns/{exp_path}/{input_series.run_id}/data_frame.pkl", 'rb') as pickle_file:
                 df = pickle.load(pickle_file)
             last_sequence = df[target_name].tail(sequence_length)

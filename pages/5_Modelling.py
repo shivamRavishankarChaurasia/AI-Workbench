@@ -28,7 +28,8 @@ st.markdown("<hr style='margin:0px'>", unsafe_allow_html=True)
 schedule_folder = "Database/ScheduleData"
 
 file_name = Manager.files_details()
-iosense_true_experiments, iosense_false_experiments = Manager.get_mlflow_experiments()
+
+# iosense_true_experiments, iosense_false_experiments = Manager.get_mlflow_experiments()
 if tab == 'Train Models':
     if len(file_name) > 1:
         # if 'iosense' not in st.session_state:

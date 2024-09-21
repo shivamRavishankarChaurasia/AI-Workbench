@@ -17,7 +17,8 @@ Manager.faclon_logo()
 
 st.subheader('Storage')
 file_name = Manager.files_details()
-select_lvl1 = st.radio("Yooo",["Data Insights","Null Operations","Merge","Concat","Resample","Files Details"],horizontal=True,label_visibility="collapsed")
+
+select_lvl1 = st.radio("Yooo",["Data Insights","Data Statistics","Null Operations","Duplicate values" , "Merge","Concat","Resample","Files Details"],horizontal=True,label_visibility="collapsed")
 st.markdown("<hr style='margin:0px'>", unsafe_allow_html=True)
 
 if len(file_name) > 1:
@@ -28,10 +29,8 @@ if len(file_name) > 1:
     if select_lvl1 == "Data Insights":
         st.subheader("Insights", help="This section provides insights on the displayed data, including the column name, data type, percentage of null values, category status (yes or no), count, and an option to perform a drop operation via the checkbox.")
         col1,col2 = st.columns([3.5,1.5])
-
         tab0_name = col2.selectbox("Please select file:",file_name,key="tab0_name",index=file_name.index(st.session_state['default_name']))
         st.session_state['default_name'] = tab0_name
-
         df = Manager.read_parquet(file_name=tab0_name)
         tab0_categories = Manager.determine_categorial_columns(df=df,threshold=0.03)
 
@@ -94,6 +93,71 @@ if len(file_name) > 1:
                     use_container_width=True,
                     type="primary"
                     )
+    elif select_lvl1 == "Data Statistics": 
+        st.subheader("Statistical Summary",help="Help to get the statistical information about the data")
+        st.session_state.flag = False
+        col1,col2 = st.columns([3.5,1.5])
+        tab0_name = col2.selectbox("Please select file:",file_name,key="tab0_name",index=file_name.index(st.session_state['default_name']))
+        st.session_state['default_name'] = tab0_name
+        df = Manager.read_parquet(file_name=tab0_name)
+        col1.write(df.describe())
+
+    elif select_lvl1 == "Duplicate values":
+        st.subheader("Duplicate Values",help="Help to get the  information about the  duplicate values present in the data or not")
+        st.session_state.flag = False
+        col1,col2 = st.columns([3.5,1.5])
+        tab0_name = col2.selectbox("Please select file:",file_name,key="tab0_name",index=file_name.index(st.session_state['default_name']))
+        st.session_state['default_name'] = tab0_name
+        df = Manager.read_parquet(file_name=tab0_name)
+        duplicates_values = df.duplicated().sum()
+        # Check if there are any duplicate values
+        if duplicates_values == 0:
+            col1.write("No duplicate values are present in the data.")
+        else:
+            col1.write(f"Number of duplicate rows: {duplicates_values}")
+            # Display the duplicate rows in the DataFrame format
+            # col1.write("Duplicate rows in the DataFrame:")
+            col1.dataframe(df[df.duplicated(keep=False)])  # Displays all duplicates, including the first occurrence
+        if col2.button("Remove Duplicates" , type ="primary" , use_container_width = True):
+            df = df.drop_duplicates()
+            col1.write("Duplicates removed successfully.")
+            # col1.dataframe(df)
+
+
+            storage_tab1,storage_tab2,storage_tab3 = col2.tabs(['Update','Save','Download'])
+
+            with storage_tab1:
+                st.warning("Do you wish to overwrite the existing file")
+                if st.button("Update",key="random_update"):
+                    try:
+                        Manager.update_parquet(df=df,file_name=tab0_name)
+                        Manager.modify_metadata(file_name=tab0_name,new_process=[f"df = df.drop(columns={cols_to_drop},axis=1)"])
+                        Manager.delete_pages_sessions(key='default_name')
+                        time.sleep(5)
+                    except Exception as e:
+                        st.exception(e)
+
+            with storage_tab2:
+                null_update = st.text_input("Please Provide Name",help="Please press enter to save \n Dont add .csv or any other extension",key="random_key")
+
+                if len(null_update) > 0:
+                    Manager.create_parquet(file_name=null_update)
+                    Manager.delete_in_page_session()
+                    time.sleep(5)
+                    st.experimental_rerun()
+                else:
+                    st.info('Please fill in inputs')
+
+            with storage_tab3:
+                csv = df.to_csv().encode('utf-8')
+                st.download_button(
+                label="Download",
+                data=csv,
+                file_name=f'Operated_{tab0_name}_{datetime.now()}.csv',
+                mime='text/csv',
+                use_container_width=True,
+                type="primary"
+                )
 
     elif select_lvl1 == "Null Operations":
         st.subheader("Nullifier",help="You can fill null values using this functionality")

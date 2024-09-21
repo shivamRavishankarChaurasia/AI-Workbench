@@ -26,4 +26,5 @@ pmdarima
 imbalanced-learn
 flower
 pendulum
+dotenv
 

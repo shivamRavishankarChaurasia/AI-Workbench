@@ -4,7 +4,6 @@ import pandas as pd
 import streamlit as st
 import constants as c
 import iosense_connect as io
-
 import Utilities.py_tools as Manager
 from datetime import datetime
 
@@ -12,7 +11,7 @@ st.set_page_config(layout="wide",page_title="Data Import",page_icon="https://sto
 
 def main():
     st.subheader('Data Import')
-    import_select = st.radio("select",["Upload", "Connect"],horizontal=True,label_visibility='collapsed')
+    import_select = st.radio("select",["Upload", "API" , "Database" , "Web-Scraping","Connect"],horizontal=True,label_visibility='collapsed')
     st.markdown("<hr style='margin:0px'>", unsafe_allow_html=True)
     
     Manager.faclon_logo()
@@ -51,7 +50,22 @@ def main():
                 Manager.create_parquet(df=df,file_name=file.name)
 
 
-    else:
+    if import_select == "API":
+        st.subheader("Api key")
+        end_point = st.text_input("Enter the endpoint"  )
+        api_key = st.text_input("Enter the the api key"  , type =  "password")
+        button  = st.button("Fetch")
+        if api_key:
+            data = Manager.fetch_data_from_api(api_key)
+            df = Manager.process_data(data)
+            if df is not None:
+            # You can use a filename or a different identifier for the API data
+              Manager.create_parquet(df=df, file_name="api_data.parquet")
+
+
+
+
+    if import_select == "Connect":
         st.subheader('Connect to IO-Sense')
         col1,col2 = st.columns([3.5,1.5])
 

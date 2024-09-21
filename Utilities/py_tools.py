@@ -125,8 +125,10 @@ def read_parquet(file_name=None):
 
     Returns:
         _type_: pd.DataFrame
+
     """
     result_df = pd.read_parquet(c.DEFAULT_STORAGE.format(file=file_name))
+
     return result_df
 
 
@@ -159,8 +161,28 @@ def files_details():
     file_list = []
     files = glob.glob(c.DEFAULT_STORAGE.format(file="*"))
     for file in files:
-        file_list.append(file.split("/")[-1].split(".")[0])
+        file_list.append(file.split("\\")[-1].split(".")[0])
     return file_list
+
+
+
+# def files_details():
+#     """Fetches the list of file names from the specified storage directory.
+
+#     Returns:
+#         list: A list of file names without extensions from the storage directory.
+#     """
+#     file_list = []
+#     # Use glob to find all files matching the pattern defined in DEFAULT_STORAGE
+#     files = glob.glob(c.DEFAULT_STORAGE.format(file="*"))
+
+#     for file in files:
+#         # Use os.path.basename to get the file name and os.path.splitext to remove the extension
+#         file_name = os.path.splitext(os.path.basename(file))[0]
+
+#         file_list.append(file_name)
+    
+#     return file_list
 
 
 """
@@ -189,7 +211,7 @@ def create_metadata(file_name: str):
 
 
 # this metadata is for iosense data
-def invoke_iosense(file_name :str , Device_ID, Sensors, start_time, end_time, period, cal, db, ist):
+""" def invoke_iosense(file_name :str , Device_ID, Sensors, start_time, end_time, period, cal, db, ist):
     try:
         st.toast("Updating metadata")
         file_path = c.DEFAULT_METADATA.format(file=file_name)
@@ -210,7 +232,7 @@ def invoke_iosense(file_name :str , Device_ID, Sensors, start_time, end_time, pe
         return True
     except Exception as e:
         st.error(f"Couldn't Modify iosense Metadata. Error: {e}")
-        return False
+        return False """
         
 
 def modify_metadata(file_name:str,new_process:list) -> bool:
@@ -280,7 +302,7 @@ def modify_metadata(file_name:str,new_process:list) -> bool:
 #         return False
 
 
-def has_iosense_key(file_name: str) -> bool:
+""" def has_iosense_key(file_name: str) -> bool:
     file_path = c.DEFAULT_METADATA.format(file=file_name)
     try:
         with open(file_path, 'r') as config_file:
@@ -290,7 +312,7 @@ def has_iosense_key(file_name: str) -> bool:
         # return 'iosense' in config and config['iosense']
     except (FileNotFoundError, json.JSONDecodeError):
         # Return False in case of file not found or JSON decode error
-        return False
+        return False """
 
 
 # scheduling part part 
@@ -450,7 +472,6 @@ def iosense_multi_select_concatinator(_io_sense,selected_device,select_sensors,s
 """
 Storage
 """
-
 @st.cache_data  
 def determine_categorial_columns(df,threshold):
 
@@ -469,6 +490,7 @@ def determine_categorial_columns(df,threshold):
             column_name.append(column)
         
     return column_name
+
 
 @st.cache_data
 def get_table(df,tab0_categories):
@@ -1055,6 +1077,78 @@ def apply_diff_function(df ,diff_col , period):
     df[f"{diff_col}_diff"]  = df[diff_col].diff(periods =period)
 
     return df 
+
+
+# EDA
+# Define the plotting function
+def plot_categorical_data(data, column, plot_type, display_area):
+    """
+    Plots a categorical column based on the selected plot type.
+
+    Parameters:
+    - data: The DataFrame containing the data.
+    - column: The column to plot.
+    - plot_type: The type of plot ("Count_plot" or "Pie chart").
+    - display_area: Streamlit column or placeholder to display the plot.
+    """
+    plt.figure(figsize=(6, 5))
+    
+    if plot_type == "Count_plot":
+        # Create a count plot
+        sns.countplot(x=data[column])
+        plt.title(f'Count Plot of {column}')
+        plt.xlabel(column)
+        plt.ylabel('Count')
+    elif plot_type == "Pie chart":
+        # Create a pie chart
+        data[column].value_counts().plot.pie(autopct='%1.1f%%', colors=sns.color_palette('pastel'))
+        plt.title(f'Pie Chart of {column}')
+        plt.ylabel('')
+    
+    # Display the plot in the specified display area
+    display_area.pyplot(plt)
+    plt.close()  # Close the plot to avoid overlapping issues in Streamlit
+
+
+# Define the plotting function for numerical data
+def plot_numerical_data(data, column, plot_type, display_area):
+    """
+    Plots a numerical column based on the selected plot type.
+
+    Parameters:
+    - data: The DataFrame containing the data.
+    - column: The column to plot.
+    - plot_type: The type of plot ("Histogram", "Distplot", or "Boxplot").
+    - display_area: Streamlit column or placeholder to display the plot.
+    """
+    plt.figure(figsize=(8, 5))
+    
+    if plot_type == "Histogram":
+        # Create a histogram
+        sns.histplot(data[column], bins=10, kde=True)
+        plt.title(f'Histogram of {column}')
+        plt.xlabel(column)
+        plt.ylabel('Frequency')
+        
+    elif plot_type == "Distplot":
+        # Create a distribution plot
+        sns.distplot(data[column], bins=10, kde=True)
+        plt.title(f'PDF Plot of {column}')
+        plt.xlabel(column)
+        plt.ylabel('Density')
+        
+    elif plot_type == "Boxplot":
+        # Create a box plot
+        sns.boxplot(y=data[column] , orient ='h')
+        plt.title(f'Box Plot of {column}')
+        plt.ylabel(column)
+    
+    # Display the plot in the specified display area
+    display_area.pyplot(plt)
+    plt.close()  # Close the plot to avoid overlapping issues in Streamlit
+
+
+
 
 """
 Data Exploration

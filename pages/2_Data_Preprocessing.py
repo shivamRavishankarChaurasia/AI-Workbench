@@ -9,8 +9,7 @@ import pandas as pd
 import Utilities.py_tools as Manager
 from datetime import datetime, timedelta
 
-st.set_page_config(layout="wide",page_title="Data Preprocessing",page_icon="https://storage.googleapis.com/ai-workbench/Data%20preprocessing.svg")
-
+st.set_page_config(layout="wide",page_title="Data Preprocessing",page_icon="https://img.icons8.com/?size=100&id=7O4JH5C7TOv5&format=png&color=000000")
 Manager.faclon_logo()  
 
 try:

@@ -15,7 +15,6 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import seaborn as sns
 import matplotlib.pyplot as plt
-import iosense_connect as io
 import plotly.express as ex
 import plotly.graph_objects as go
 import pyparsing as pp
@@ -31,6 +30,11 @@ from celery.result import AsyncResult
 
 import pendulum
 from datetime import datetime, timedelta
+import sqlalchemy
+from pymongo import MongoClient
+import boto3
+from google.cloud import storage
+from azure.storage.blob import BlobServiceClient
 
 
 mlflow.set_tracking_uri("http://172.17.0.1:5000")
@@ -38,164 +42,337 @@ mlflow.set_tracking_uri("http://172.17.0.1:5000")
 """
 All Database Related Fuctionality
 """
-def create_parquet(df: pd.DataFrame,file_name: str) -> bool:
-    """Converts the csv into parquet
 
-    Args:
-        df (DataFrame): pd.dataframe
-        file_name (_type_, optional): _description_. Contains the file name.
+@st.cache_data
+def validate_and_clean_data(df: pd.DataFrame) -> tuple[pd.DataFrame, list]:
     """
-    file_name = file_name.split(".")[0]
-    st.toast(f"Initiated proccess to add {file_name} to Database")
-    try:
-        if os.path.exists(c.DEFAULT_STORAGE.format(file=file_name)) or len(df)==0:
-            st.error(f"Uh-oh! We've got a name doppelganger: {file_name}")
-        else:
-            df.to_parquet(c.DEFAULT_STORAGE.format(file=file_name),index=False)
-            create_metadata(file_name=file_name)
-    except Exception as e:
-        st.error(e)
-
-
-
-
-def create_schedule_parquet(task_id, file_name, schedule_date, frequency, n_periods, schedule_time):
-    try:
-        parquet_path = c.DEFAULT_SCHEDULE_PATH.format(file="schedule_data")
-        frequency_mapping = c.FREQUENCY_MAPPING.get(frequency.lower())
-        if isinstance(frequency_mapping, timedelta):
-            frequency_mapping_hours = frequency_mapping.total_seconds() / 3600
-        else:
-            frequency_mapping_hours = frequency_mapping
-        delta_hours = frequency_mapping_hours * n_periods
-        end_date = schedule_date + timedelta(hours=delta_hours)
-
-        if os.path.exists(parquet_path):
-            existing_schedule_df = pd.read_parquet(parquet_path)
-        else:
-            existing_schedule_df = pd.DataFrame(columns=["file_name", "task_id", "schedule_initialed","start_date","schedule_time","frequency", "end_date"])
-            existing_schedule_df.to_parquet(parquet_path, index=False)
-
-        new_schedule_row = pd.DataFrame({
-            "file_name": [file_name],
-            "task_id": [task_id],
-            "schedule_initialed": [datetime.now()],
-            "start_date": [schedule_date],
-            "schedule_time": [schedule_time],
-            "frequency": [frequency],
-            "end_date": [end_date]
-        })
-        updated_schedule_df = pd.concat([existing_schedule_df, new_schedule_row], ignore_index=True)
-        updated_schedule_df.to_parquet(parquet_path, index=False)
-        st.toast("Schedule data is saved Successfully ")
-    except Exception as e:
-        print(f"An error occurred: {e}")
-
-
-
-def update_parquet(df: pd.DataFrame,file_name: str):
-    """Updates the existing parquet
-
-    Args:
-        df (DataFrame): pd.dataframe
-        directory (_type_, optional): _description_. Defaults to c.default_storage_directory.
-        file_name (_type_, optional): _description_. Contains the file name.
-    """
-    st.toast(f"Updating Database Table :{file_name}")
-    df.to_parquet(c.DEFAULT_STORAGE.format(file=file_name), index=True)
-
-def update_schedule_parquet(df: pd.DataFrame,file_name: str):
-    """Updates the existing parquet
-
-    Args:
-        df (DataFrame): pd.dataframe
-        directory (_type_, optional): _description_. Defaults to c.default_storage_directory.
-        file_name (_type_, optional): _description_. Contains the file name.
-    """
-    st.toast(f"Updating Database Table :{file_name}")
-    df.to_parquet(c.DEFAULT_SCHEDULE_PATH.format(file=file_name), index=True)
-
-
-def read_parquet(file_name=None):
-    """Takes in directory and file name to read parquet file
-
-    Args:
-        directory (Path, optional): _description_. Defaults to c.default_storage_directory.
-        file_name (str, optional): _description_. Defaults to None.
-
-    Returns:
-        _type_: pd.DataFrame
-
-    """
-    result_df = pd.read_parquet(c.DEFAULT_STORAGE.format(file=file_name))
-
-    return result_df
-
-
-def read_schedule_parquet(file_name=None):
-    """Takes in directory and file name to read parquet file
-
-    Args:
-        directory (Path, optional): _description_. Defaults to c.default_storage_directory.
-        file_name (str, optional): _description_. Defaults to None.
-
-    Returns:
-        _type_: pd.DataFrame
-    """
-    parquet_path = c.DEFAULT_SCHEDULE_PATH.format(file=file_name)
+    Comprehensively validate and clean a DataFrame, handling various edge cases and data types.
     
-    if os.path.exists(parquet_path):
-        result_df = pd.read_parquet(parquet_path)
+    Args:
+        df (pd.DataFrame): Input DataFrame to clean and validate
+        
+    Returns:
+        tuple[pd.DataFrame, list]: Cleaned DataFrame and list of cleaning operations performed
+    """
+    metadata = []
+    try:
+        # Make a copy to avoid modifying original
+        df = df.copy()
+        
+        # Basic validation
+        if df.empty:
+            raise ValueError("DataFrame is empty")
+            
+        # Remove completely empty rows and columns
+        df = df.dropna(how='all', axis=0)
+        df = df.dropna(how='all', axis=1)
+        metadata.append("Removed empty rows and columns")
+        
+        # Clean column names
+        df.columns = df.columns.str.strip()
+        df.columns = df.columns.str.replace('[^\w\s]', '_', regex=True)
+        df.columns = df.columns.str.lower()
+        metadata.append("Standardized column names")
+        
+        # Handle each column
+        for column in df.columns:
+            df[column] = clean_column(df[column])
+            metadata.append(f"Cleaned column: {column}")
+            
+        return df, metadata
+        
+    except Exception as e:
+        st.error(f"Error in data validation: {str(e)}")
+        return df, metadata
+
+@st.cache_data
+def clean_column(series: pd.Series) -> pd.Series:
+    """
+    Clean a single column, handling various data types and edge cases.
+    
+    Args:
+        series (pd.Series): Column to clean
+        
+    Returns:
+        pd.Series: Cleaned column
+    """
+    try:
+        # Remove leading/trailing whitespace if string
+        if series.dtype == 'object':
+            series = series.str.strip()
+            
+        # Try to infer the best data type
+        if is_numeric_candidate(series):
+            return convert_to_numeric(series)
+        elif is_datetime_candidate(series):
+            return convert_to_datetime(series)
+        elif is_boolean_candidate(series):
+            return convert_to_boolean(series)
+        
+        return series
+        
+    except Exception as e:
+        st.warning(f"Could not clean column {series.name}: {str(e)}")
+        return series
+
+@st.cache_data
+def is_numeric_candidate(series: pd.Series) -> bool:
+    """
+    Check if a series could be converted to numeric type.
+    
+    Args:
+        series (pd.Series): Series to check
+        
+    Returns:
+        bool: True if series can be converted to numeric
+    """
+    if series.dtype.kind in 'biufc':
+        return True
+        
+    if series.dtype == 'object':
+        # Remove common non-numeric characters
+        cleaned = series.astype(str).str.replace('[$,%)(\s]', '', regex=True)
+        cleaned = cleaned.str.replace('[−-]', '-', regex=True)  # Standardize minus signs
+        
+        try:
+            pd.to_numeric(cleaned, errors='raise')
+            return True
+        except (ValueError, TypeError):
+            return False
+            
+    return False
+
+@st.cache_data
+def convert_to_numeric(series: pd.Series) -> pd.Series:
+    """
+    Convert a series to numeric type, handling various formats.
+    
+    Args:
+        series (pd.Series): Series to convert
+        
+    Returns:
+        pd.Series: Numeric series
+    """
+    try:
+        return pd.to_numeric(series.str.replace('[$,%)(\s]', '', regex=True).str.replace('[−-]', '-', regex=True), errors='coerce')
+    except Exception as e:
+        st.warning(f"Numeric conversion failed for {series.name}: {str(e)}")
+        return series
+
+@st.cache_data
+def is_datetime_candidate(series: pd.Series) -> bool:
+    """
+    Check if a series could be converted to datetime type.
+    
+    Args:
+        series (pd.Series): Series to check
+        
+    Returns:
+        bool: True if series can be converted to datetime
+    """
+    if series.dtype == 'datetime64[ns]':
+        return True
+        
+    if series.dtype == 'object':
+        try:
+            pd.to_datetime(series, errors='raise')
+            return True
+        except (ValueError, TypeError):
+            return False
+            
+    return False
+
+@st.cache_data
+def convert_to_datetime(series: pd.Series) -> pd.Series:
+    """
+    Convert a series to datetime type, handling various formats.
+    
+    Args:
+        series (pd.Series): Series to convert
+        
+    Returns:
+        pd.Series: Datetime series
+    """
+    try:
+        return pd.to_datetime(series, errors='coerce')
+    except Exception as e:
+        st.warning(f"Datetime conversion failed for {series.name}: {str(e)}")
+        return series
+
+@st.cache_data
+def is_boolean_candidate(series: pd.Series) -> bool:
+    """
+    Check if a series could be converted to boolean type.
+    
+    Args:
+        series (pd.Series): Series to check
+        
+    Returns:
+        bool: True if series can be converted to boolean
+    """
+    if series.dtype == bool:
+        return True
+        
+    if series.dtype == 'object':
+        # Common boolean representations
+        true_values = {'true', 'yes', '1', 't', 'y'}
+        false_values = {'false', 'no', '0', 'f', 'n'}
+        
+        unique_values = set(series.str.lower().unique())
+        return unique_values.issubset(true_values.union(false_values))
+        
+    return False
+
+@st.cache_data
+def convert_to_boolean(series: pd.Series) -> pd.Series:
+    """
+    Convert a series to boolean type, handling various formats.
+    
+    Args:
+        series (pd.Series): Series to convert
+        
+    Returns:
+        pd.Series: Boolean series
+    """
+    try:
+        if series.dtype == bool:
+            return series
+            
+        # Map common boolean representations
+        true_values = {'true', 'yes', '1', 't', 'y'}
+        return series.str.lower().isin(true_values)
+        
+    except Exception as e:
+        st.warning(f"Boolean conversion failed for {series.name}: {str(e)}")
+        return series
+
+@st.cache_data
+def create_parquet(df: pd.DataFrame, file_name: str) -> bool:
+    """
+    Converts DataFrame to parquet format after cleaning and validation.
+    
+    Args:
+        df (pd.DataFrame): DataFrame to convert
+        file_name (str): Name for the parquet file
+        
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        st.toast(f"Initiated process to add {file_name} to Database")
+        
+        # Clean and validate data
+        df, cleaning_metadata = validate_and_clean_data(df)
+        
+        file_name = file_name.split(".")[0]
+        if os.path.exists(c.DEFAULT_STORAGE.format(file=file_name)) or len(df) == 0:
+            st.error(f"File already exists or data is empty: {file_name}")
+            return False
+            
+        # Save to parquet
+        df.to_parquet(c.DEFAULT_STORAGE.format(file=file_name), index=False)
+        
+        # Create metadata with cleaning information
+        create_metadata(file_name=file_name)
+        modify_metadata(file_name=file_name, new_process=cleaning_metadata)
+        
+        st.success(f"Successfully saved cleaned data to {file_name}")
+        return True
+        
+    except Exception as e:
+        st.error(f"Error saving parquet file: {str(e)}")
+        return False
+
+@st.cache_data
+def update_parquet(df: pd.DataFrame, file_name: str):
+    """
+    Updates the existing parquet file with new data.
+
+    Args:
+        df (pd.DataFrame): DataFrame containing the data to update.
+        file_name (str): Name of the parquet file to update.
+    """
+    try:
+        st.toast(f"Updating Database Table: {file_name}")
+        file_path = c.DEFAULT_STORAGE.format(file=file_name)
+        
+        # Check if the file exists
+        if not os.path.exists(file_path):
+            st.error(f"File {file_name} does not exist.")
+            return
+        
+        # Update the parquet file
+        df.to_parquet(file_path, index=True)
+        st.success(f"Successfully updated {file_name}")
+    except Exception as e:
+        st.error(f"Failed to update parquet file: {e}")
+
+@st.cache_data
+def read_parquet(file_name: str) -> pd.DataFrame:
+    """
+    Reads a parquet file and returns it as a DataFrame.
+
+    Args:
+        file_name (str): Name of the parquet file to read.
+
+    Returns:
+        pd.DataFrame: DataFrame containing the data from the parquet file.
+    """
+    try:
+        file_path = c.DEFAULT_STORAGE.format(file=file_name)
+        
+        # Check if the file exists
+        if not os.path.exists(file_path):
+            st.error(f"File {file_name} does not exist.")
+            return pd.DataFrame()
+        
+        result_df = pd.read_parquet(file_path)
+        st.success(f"Successfully read {file_name}")
         return result_df
-    else:
-        print(f"The file {file_name} does not exist.")
-        return None 
+    except Exception as e:
+        st.error(f"Failed to read parquet file: {e}")
+        return pd.DataFrame()
 
-
-def files_details():
-    """_summary_
+@st.cache_data
+def files_details() -> list:
+    """
+    Retrieves a list of all parquet files in the default storage directory.
 
     Returns:
-        _type_: _description_
+        list: List of file names without extensions.
     """
-    file_list = []
-    files = glob.glob(c.DEFAULT_STORAGE.format(file="*"))
-    for file in files:
-        file_list.append(file.split("\\")[-1].split(".")[0])
-    return file_list
-
-
-
-# def files_details():
-#     """Fetches the list of file names from the specified storage directory.
-
-#     Returns:
-#         list: A list of file names without extensions from the storage directory.
-#     """
-#     file_list = []
-#     # Use glob to find all files matching the pattern defined in DEFAULT_STORAGE
-#     files = glob.glob(c.DEFAULT_STORAGE.format(file="*"))
-
-#     for file in files:
-#         # Use os.path.basename to get the file name and os.path.splitext to remove the extension
-#         file_name = os.path.splitext(os.path.basename(file))[0]
-
-#         file_list.append(file_name)
-    
-#     return file_list
-
+    try:
+        file_list = []
+        files = glob.glob(c.DEFAULT_STORAGE.format(file="*"))
+        
+        for file in files:
+            file_name = os.path.basename(file).split(".")[0]
+            file_list.append(file_name)
+        
+        st.success("Successfully retrieved file details")
+        return file_list
+    except Exception as e:
+        st.error(f"Failed to retrieve file details: {e}")
+        return []
 
 """
 All Related to Metadata
 """
+@st.cache_data
 def create_metadata(file_name: str):
+    """
+    Create metadata for the given file.
+    
+    Args:
+        file_name (str): Name of the file for which metadata is created
+    """
     try:
         st.toast(f"Initialized Metadata for {file_name}")
         metadata = {
             'fileName': file_name,
             'timeCreated': str(datetime.now().replace(microsecond=0)),
             'timeModified': str(datetime.now().replace(microsecond=0)),
-            'proccess': []
+            'process': []
         }
         file_path = c.DEFAULT_METADATA.format(file=file_name)
 
@@ -203,39 +380,21 @@ def create_metadata(file_name: str):
             json.dump(metadata, json_file)
         
         st.success("Metadata created Successfully")
-        return True
     except Exception as e:
         st.error(f"Couldn't create Metadata. Error: {e}")
-        return False
+
+@st.cache_data
+def modify_metadata(file_name: str, new_process: list) -> bool:
+    """
+    Modify metadata to include new processes.
     
-
-
-# this metadata is for iosense data
-""" def invoke_iosense(file_name :str , Device_ID, Sensors, start_time, end_time, period, cal, db, ist):
-    try:
-        st.toast("Updating metadata")
-        file_path = c.DEFAULT_METADATA.format(file=file_name)
-        with open(file_path, 'r') as config_file:
-            config = json.load(config_file)
-        config['iosense']= {
-            'Device_Id': Device_ID,
-            'sensors': Sensors if Sensors is not None else None,
-            'start_time': str(start_time),
-            'end_time': str(end_time),
-            'period': int(period),
-            'cal': str(cal),
-            'db': str(db),
-            'IST': str(ist)
-            }
-        with open(file_path, "w") as json_file:
-            json.dump(config, json_file)
-        return True
-    except Exception as e:
-        st.error(f"Couldn't Modify iosense Metadata. Error: {e}")
-        return False """
+    Args:
+        file_name (str): Name of the file whose metadata is modified
+        new_process (list): List of new processes to add to metadata
         
-
-def modify_metadata(file_name:str,new_process:list) -> bool:
+    Returns:
+        bool: True if successful, False otherwise
+    """
     try:
         st.toast("Updating metadata")
         file_path = c.DEFAULT_METADATA.format(file=file_name)
@@ -243,77 +402,14 @@ def modify_metadata(file_name:str,new_process:list) -> bool:
             config = json.load(config_file)
         config['timeModified'] = str(datetime.now().replace(microsecond=0))
         for process in new_process:
-            config['proccess'].append(process)
+            config['process'].append(process)
         with open(file_path, "w") as json_file:
             json.dump(config, json_file)
         st.toast("Metadata updated Successfully")
         return True
     except Exception as e:
-        st.error(f"Couldn't Modify iosense Metadata. Error: {e}")
+        st.error(f"Couldn't Modify Metadata. Error: {e}")
         return False
-
-
-# def create_scheduling_metadata(config , train_date, train_time, n_periods, frequency, rolling):
-#     try:
-#         file_name = config["filename"]
-#         st.toast(f"Initialized Metadata for {file_name}")
-#         metadata = {
-#             'fileName': file_name,
-#             'modelling':config,
-#             'schedular': {
-#                 'train_date': str(train_date),
-#                 'train_time': str(train_time),
-#                 'n_period': int(n_periods),
-#                 'frequency': str(frequency),
-#                 'rolling': str(rolling)
-#             }
-#         }
-#         file_path = c.DEFAULT_SCHEDULE_PATH.format(file=file_name)
-#         with open(file_path, "w") as json_file:
-#             json.dump(metadata, json_file, indent=4)
-
-#         st.success("Metadata created Successfully")
-#         return True
-#     except Exception as e:
-#         st.error(f"Couldn't create Metadata. Error: {e}")
-#         return False
-    
-
-# this metadata is for iosense data
-# def modify_scheduling_metadata(file_name: str, train_date, train_time, n_periods, frequency, rolling):
-#     try:
-#         st.toast("Updating metadata")
-#         file_path = c.SCHEDULE_METADATA.format(file=file_name)
-#         # file_path = f"Database/ScheduleMetadata/{file_name}.json"
-#         with open(file_path, 'r') as config_file:
-#             config = json.load(config_file)
-#         config['schedular']= {
-#             'train_date': str(train_date),
-#             'train_time': str(train_time),
-#             'n_period': int(n_periods),
-#             'frequency': str(frequency),
-#             'rolling': str(rolling)
-#         }
-#         with open(file_path, "w") as json_file:
-#             json.dump(config, json_file)
-#         return True
-#     except Exception as e:
-#         st.error(f"Couldn't Modify iosense Metadata. Error: {e}")
-#         return False
-
-
-""" def has_iosense_key(file_name: str) -> bool:
-    file_path = c.DEFAULT_METADATA.format(file=file_name)
-    try:
-        with open(file_path, 'r') as config_file:
-            config = json.load(config_file)
-        # Check if 'iosense' key exists in the config dictionary
-        return 'iosense' in config
-        # return 'iosense' in config and config['iosense']
-    except (FileNotFoundError, json.JSONDecodeError):
-        # Return False in case of file not found or JSON decode error
-        return False """
-
 
 # scheduling part part 
 def get_scheduling_parameters():
@@ -324,10 +420,212 @@ def get_scheduling_parameters():
     rolling_checkbox = st.checkbox("Start_time:")
     return selected_date, selected_time, frequency, periods, rolling_checkbox
 
+# ALL  data import techniques methods 
+
+@st.cache_data
+def fetch_data_from_sql_database(connection_string: str, query: str) -> pd.DataFrame:
+    """
+    Fetch data from an SQL database using a connection string and SQL query.
+    
+    Args:
+        connection_string (str): SQL database connection string
+        query (str): SQL query to execute
+        
+    Returns:
+        pd.DataFrame: DataFrame containing the fetched data
+    """
+    try:
+        engine = sqlalchemy.create_engine(connection_string)
+        with engine.connect() as connection:
+            df = pd.read_sql(query, connection)
+        st.success("Successfully fetched data from SQL database")
+        return df
+    except Exception as e:
+        st.error(f"Failed to fetch data from SQL database: {e}")
+      
+        return pd.DataFrame()
+
+@st.cache_data
+def fetch_data_from_nosql_database(connection_string: str, command: str) -> pd.DataFrame:
+    """
+    Fetch data from a NoSQL database using a connection string and command.
+    
+    Args:
+        connection_string (str): NoSQL database connection string
+        command (str): NoSQL command to execute
+        
+    Returns:
+        pd.DataFrame: DataFrame containing the fetched data
+    """
+    try:
+        client = MongoClient(connection_string)
+        db = client.get_default_database()
+        collection = db.get_collection(command.split()[0])  # Assuming command starts with collection name
+        data = list(collection.find())
+        df = pd.DataFrame(data)
+        st.success("Successfully fetched data from NoSQL database")
+        return df
+    except Exception as e:
+        st.error(f"Failed to fetch data from NoSQL database: {e}")
+        return pd.DataFrame()
+
+@st.cache_data
+def fetch_data_from_api(endpoint: str, api_key: str) -> dict:
+    """
+    Fetch data from an API using an endpoint and API key.
+    
+    Args:
+        endpoint (str): API endpoint URL
+        api_key (str): API key for authentication
+        
+    Returns:
+        dict: Data fetched from the API
+    """
+    try:
+        headers = {'Authorization': f'Bearer {api_key}'}
+        response = requests.get(endpoint, headers=headers)
+        response.raise_for_status()
+        st.success("Successfully fetched data from API")
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        st.error(f"Failed to fetch data from API: {e}")
+        return {}
+
+@st.cache_data
+def fetch_data_from_cloud(provider: str, bucket_name: str, file_key: str) -> pd.DataFrame:
+    """
+    Fetch data from cloud storage (AWS, Azure, Google Cloud).
+    
+    Args:
+        provider (str): Cloud provider name (AWS, Azure, Google Cloud)
+        bucket_name (str): Name of the cloud storage bucket
+        file_key (str): Key or path to the file in the bucket
+        
+    Returns:
+        pd.DataFrame: DataFrame containing the fetched data
+    """
+    try:
+        if provider == "AWS":
+            s3 = boto3.client('s3')
+            obj = s3.get_object(Bucket=bucket_name, Key=file_key)
+            df = pd.read_csv(obj['Body'])
+        elif provider == "Azure":
+            blob_service_client = BlobServiceClient.from_connection_string(c.AZURE_CONNECTION_STRING)
+            blob_client = blob_service_client.get_blob_client(container=bucket_name, blob=file_key)
+            stream = blob_client.download_blob().readall()
+            df = pd.read_csv(pd.compat.StringIO(stream.decode('utf-8')))
+        elif provider == "Google Cloud":
+            client = storage.Client()
+            bucket = client.get_bucket(bucket_name)
+            blob = bucket.blob(file_key)
+            data = blob.download_as_string()
+            df = pd.read_csv(pd.compat.StringIO(data.decode('utf-8')))
+        else:
+            raise ValueError("Unsupported cloud provider")
+        
+        st.success(f"Successfully fetched data from {provider} cloud storage")
+        return df
+    except Exception as e:
+        st.error(f"Failed to fetch data from cloud storage: {e}")
+        return pd.DataFrame()
 
 
-# Dashboarding 
-# def save_dashboard_metadata(dash_board):
+@st.cache_data
+def fetch_data_from_ftp(ftp_url: str, username: str, password: str) -> pd.DataFrame:
+    """
+    Fetch data from an FTP server.
+    
+    Args:
+        ftp_url (str): URL of the FTP server
+        username (str): Username for FTP authentication
+        password (str): Password for FTP authentication
+        
+    Returns:
+        pd.DataFrame: DataFrame containing the fetched data
+    """
+    try:
+        from ftplib import FTP
+        ftp = FTP(ftp_url)
+        ftp.login(user=username, passwd=password)
+        files = ftp.nlst()
+        # Assuming the first file is the target file
+        target_file = files[0]
+        with open(target_file, 'wb') as f:
+            ftp.retrbinary(f'RETR {target_file}', f.write)
+        df = pd.read_csv(target_file)
+        os.remove(target_file)  # Clean up the downloaded file
+        st.success("Successfully fetched data from FTP server")
+        return df
+    except Exception as e:
+        st.error(f"Failed to fetch data from FTP server: {e}")
+        return pd.DataFrame()
+
+@st.cache_data
+def fetch_data_from_google_sheets(sheet_url: str) -> pd.DataFrame:
+    """
+    Fetch data from a Google Sheets document.
+    
+    Args:
+        sheet_url (str): URL of the Google Sheets document
+        
+    Returns:
+        pd.DataFrame: DataFrame containing the fetched data
+    """
+    try:
+        import gspread
+        from oauth2client.service_account import ServiceAccountCredentials
+        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        creds = ServiceAccountCredentials.from_json_keyfile_name(c.GOOGLE_SHEETS_CREDENTIALS, scope)
+        client = gspread.authorize(creds)
+        sheet = client.open_by_url(sheet_url).sheet1
+        data = sheet.get_all_records()
+        df = pd.DataFrame(data)
+        st.success("Successfully fetched data from Google Sheets")
+        return df
+    except Exception as e:
+        st.error(f"Failed to fetch data from Google Sheets: {e}")
+        return pd.DataFrame()
+
+@st.cache_data
+def fetch_data_from_public_dataset(dataset_url: str) -> pd.DataFrame:
+    """
+    Fetch data from a public dataset URL.
+    
+    Args:
+        dataset_url (str): URL of the public dataset
+        
+    Returns:
+        pd.DataFrame: DataFrame containing the fetched data
+    """
+    try:
+        df = pd.read_csv(dataset_url)
+        st.success("Successfully fetched data from public dataset")
+        return df
+    except Exception as e:
+        st.error(f"Failed to fetch data from public dataset: {e}")
+        return pd.DataFrame()
+
+@st.cache_data
+def fetch_data_from_iot_device(device_id: str) -> pd.DataFrame:
+    """
+    Fetch data from an IoT device.
+    
+    Args:
+        device_id (str): ID of the IoT device
+        
+    Returns:
+        pd.DataFrame: DataFrame containing the fetched data
+    """
+    try:
+        # Placeholder for actual IoT data fetching logic
+        # This could involve connecting to an IoT platform or database
+        st.success("Successfully fetched data from IoT device")
+        return pd.DataFrame()  # Replace with actual data fetching logic
+    except Exception as e:
+        st.error(f"Failed to fetch data from IoT device: {e}")
+        return pd.DataFrame()
+
+# Add any additional utility functions needed for data import and processing here
 
 
 """
@@ -335,76 +633,76 @@ Streamlit Sessions
 """
 def faclon_logo():
     st.markdown(
-    """
-    <style>
-        [data-testid="stSidebarNav"] {
-            background-image: url(https://storage.googleapis.com/ai-workbench/Deep%20sense.svg);
-            background-repeat: no-repeat;
-            padding-top: 0px;
-            background-position: 26px 27px;
-            background-size: 13%;
-            position: relative; /* Add this line */
-        }
+        """
+        <style>
+            [data-testid="stSidebarNav"] {
+                background-image: url(https://storage.googleapis.com/ai-workbench/Deep%20sense.svg);
+                background-repeat: no-repeat;
+                padding-top: 0px;
+                background-position: 26px 27px;
+                background-size: 13%;
+                position: relative; /* Add this line */
+            }
 
-        [data-testid="stSidebarNav"]::after {
-            content: "";
-            display: block;
-            width: calc(100% - 40px); /* Reduce width by 40px total (20px from each side) */
-            height: 1px; /* Thickness of the line */
-            background-color: white; /* Color of the line */
-            position: absolute;
-            top: 85px; /* Adjust this value based on the position of the text and desired gap */
-            left: 20px; /* Add left offset to move the line 20px from the left edge */
-        }
-    
-        [data-testid="stSidebarNav"]::before {
-            content: "AI Workbench";
-            font-size: 35px;
-            color: white; /* Set text color to white */
-            position: absolute;
-            top: 20px;
-            right: 55px;
-        }
+            [data-testid="stSidebarNav"]::after {
+                content: "";
+                display: block;
+                width: calc(100% - 40px); /* Reduce width by 40px total (20px from each side) */
+                height: 1px; /* Thickness of the line */
+                background-color: white; /* Color of the line */
+                position: absolute;
+                top: -10px; /* Adjust this value based on the position of the text and desired gap */
+                left: 20px; /* Add left offset to move the line 20px from the left edge */
+            }
+        
+            [data-testid="stSidebarNav"]::before {
+                content: "AI Workbench";
+                font-size: 35px;
+                color: white; /* Set text color to white */
+                position: absolute;
+                top: -70px;
+                right: 55px;
+            }
 
-        .st-emotion-cache-pkbazv{
-            color: white;
-        }
+            .st-emotion-cache-pkbazv{
+                color: white;
+            }
 
-        .st-emotion-cache-vk3wp9{
-            background: #2f55d4;
-        }
+            .st-emotion-cache-vk3wp9{
+                background: #2f55d4;
+            }
 
-        .st-emotion-cache-17lntkn{
-            color: white;
-        }
+            .st-emotion-cache-17lntkn{
+                color: white;
+            }
 
-        .st-emotion-cache-z5fcl4 {
-            padding: 2rem 2.5rem 10rem;
-        }
+            .st-emotion-cache-z5fcl4 {
+                padding: 2rem 2.5rem 10rem;
+            }
 
-        .st-emotion-cache-164nlkn ::after {
-            content: "Made with ❤️ by Faclon Labs";
-            display: block;
-            position: absolute;
-            bottom: 0;  
-            left: 92%; 
-            color: black; 
-            font-size: 14px; 
-            transform: translateX(-50%);  
-            padding: 10px 0;
-            text-align: center;
-            background-color: #00000;
-            width: 100%;
-        }
+            .st-emotion-cache-164nlkn::after {
+                content: "Made with ❤️ by Shivam Chaurasia";
+                display: block;
+                position: absolute;
+                bottom: 0;  
+                left: 92%; 
+                color: black; 
+                font-size: 14px; 
+                transform: translateX(-50%);  
+                padding: 10px 0;
+                text-align: center;
+                background-color: #00000;
+                width: 100%;
+            }
 
-        # header[data-testid="stHeader"]{
-        #     display: none;
-        # }
-    </style>
-
-
-    """,unsafe_allow_html=True,
+            # header[data-testid="stHeader"]{
+            #     display: none;
+            # }
+        </style>
+        """,
+        unsafe_allow_html=True,
     )
+
 
 def delete_pages_sessions(key=None):
     """deletes pages session except the key value
@@ -640,17 +938,6 @@ def get_outliers(df, col, method):
 
 @st.cache_data
 def plot_outlier_graphs(outlier_df, col, method):
-    """
-    Generate a box plot to visualize outliers in a DataFrame column.
-
-    Parameters:
-        outlier_df (DataFrame): The DataFrame containing the data.
-        col (str): The column name for which to create the box plot.
-        method (str): The method used for detecting outliers.
-
-    Returns:
-        plotly.graph_objs.Figure: A Plotly figure displaying the box plot.
-    """
     fig = ex.box(outlier_df, x=col , points = 'outliers' , title='Box Plot to visualize Outliers' ,  template='plotly_dark' )
     return fig
 
@@ -1407,7 +1694,7 @@ def generate_schedule_dates(start_date, start_time, n_periods, frequency):
 
 
 base_url = 'http://localhost:8000/'
-iosense_data = io.DataAccess(c.API_KEY, c.URL, c.CONTAINER)
+# iosense_data = io.DataAccess(c.API_KEY, c.URL, c.CONTAINER)
 data_fetch_configs = {}
 metadata_folder = c.DEFAULT_IOSENSE_METADATA
 

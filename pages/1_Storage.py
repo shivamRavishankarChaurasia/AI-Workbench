@@ -6,8 +6,6 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import constants as c
-import iosense_connect as io
-
 import Utilities.py_tools as Manager
 from datetime import datetime, timedelta
 

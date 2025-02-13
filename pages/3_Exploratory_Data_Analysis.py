@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import constants as c
-import iosense_connect as io
 import matplotlib.pyplot as plt
 import seaborn as sns
 import Utilities.py_tools as Manager

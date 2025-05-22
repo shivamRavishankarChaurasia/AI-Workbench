@@ -87,26 +87,7 @@ Experiment Tracking	MLflow
 
 🔍 NLP and Computer Vision module integrations
 
-🛠️ Getting Started
-Clone the Repository
-bash
-Copy
-Edit
-git clone https://github.com/yourusername/AI-Workbench.git
-cd AI-Workbench
-Set Up a Virtual Environment
-bash
-Copy
-Edit
-python3 -m venv env
-source env/bin/activate
-Install Dependencies
-bash
-Copy
-Edit
-pip install -r requirements.txt
-🙌 Contributing
-We welcome contributions from the community! Feel free to fork the repo, create a new branch, and submit a pull request. Make sure to follow our contribution guidelines if available.
+
 
 📄 License
 This project is licensed under the MIT License.
